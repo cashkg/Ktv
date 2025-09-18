@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>KTV Host</title>
+</head>
+<body style="background:#0b0f1a; color:#e8edf3; font-family:sans-serif; padding:20px;">
+
+  <h1>🎤 KTV Host（唱歌端）</h1>
+  <div id="status">⏳ 等待載入中…</div>
+  <div id="peer-info"></div>
+
+  <!-- 播放器 -->
+  <div id="player" style="margin-top:12px; width:100%; max-width:640px; aspect-ratio:16/9;"></div>
+
+  <!-- 控制按鈕 -->
+  <div style="margin-top:12px;">
+    <button onclick="playVideo()">▶ 播放</button>
+    <button onclick="pauseVideo()">⏸ 暫停</button>
+    <button onclick="nextSong()">⏭ 下一首</button>
+  </div>
+
+  <!-- 佇列顯示 -->
+  <h3 style="margin-top:20px;">播放佇列</h3>
+  <ul id="queue"></ul>
+
+  <!-- YouTube API -->
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <!-- PeerJS -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+  <script>
+    let player, isReady = false;
+    let queue = [];
+    let current = null;
+    let peer, conn;
+
+    // YouTube 初始化
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player("player", {
+        height: "360",
+        width: "640",
+        videoId: "",
+        events: {
+          onReady: () => {
+            isReady = true;
+            document.getElementById("status").innerText = "✅ 播放器已準備完成";
+          },
+          onStateChange: (e) => {
+            if (e.data === YT.PlayerState.ENDED) nextSong();
+          }
+        }
+      });
+    }
+
+    function playVideo() { if (player) player.playVideo(); }
+    function pauseVideo() { if (player) player.pauseVideo(); }
+
+    function nextSong() {
+      if (queue.length === 0) {
+        current = null;
+        player.stopVideo();
+        renderQueue();
+        return;
+      }
+      current = queue.shift();
+      player.loadVideoById(current.videoId);
+      renderQueue();
+      syncState();
+    }
+
+    function addToQueue(item, insertNext=false) {
+      if (insertNext) queue.unshift(item);
+      else queue.push(item);
+      if (!current) nextSong();
+      renderQueue();
+      syncState();
+    }
+
+    function renderQueue() {
+      const q = document.getElementById("queue");
+      q.innerHTML = "";
+      queue.forEach((item, i) => {
+        const li = document.createElement("li");
+        li.textContent = `${i+1}. ${item.title}`;
+        q.appendChild(li);
+      });
+    }
+
+    // PeerJS 初始化
+    peer = new Peer();
+    peer.on("open", (id) => {
+      document.getElementById("peer-info").innerText = `📡 Host Peer ID: ${id}`;
+    });
+
+    peer.on("connection", (c) => {
+      conn = c;
+      conn.on("data", (msg) => {
+        if (msg.type === "enqueue") addToQueue(msg.payload);
+        if (msg.type === "insertNext") addToQueue(msg.payload, true);
+        if (msg.type === "play") playVideo();
+        if (msg.type === "pause") pauseVideo();
+        if (msg.type === "next") nextSong();
+      });
+    });
+
+    function syncState() {
+      if (conn && conn.open) {
+        conn.send({ type:"sync", payload:{ queue, current } });
+      }
+    }
+  </script>
+</body>
+</html>
