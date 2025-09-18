@@ -7,15 +7,14 @@
 <body style="background:#111; color:#eee; font-family:sans-serif; padding:20px;">
 
   <h1>📱 KTV Controller（點歌端）</h1>
-  <input id="peerId" placeholder="輸入 Host Peer ID">
-  <button onclick="connect()">連線</button>
-  <div id="conn-status"></div>
+  <div id="conn-status" style="margin:5px 0;"></div>
 
   <!-- 搜尋區塊 -->
   <h3>搜尋歌曲</h3>
   <input id="search" placeholder="輸入歌名或歌手">
   <button onclick="searchYT()">搜尋</button>
   <div id="results" style="margin-top:10px;"></div>
+  <div id="pager" style="margin-top:10px;"></div>
 
   <!-- 控制 -->
   <h3>控制播放</h3>
@@ -23,65 +22,71 @@
   <button onclick="sendToHost({type:'pause'})">⏸ 暫停</button>
   <button onclick="sendToHost({type:'next'})">⏭ 下一首</button>
 
-  <!-- PeerJS -->
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-
   <script>
-    const API_KEY = "AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE"; // ← 請換成你的 API Key
-    let peer, conn;
+    const API_KEY = "YOUR_YOUTUBE_API_KEY"; // ← 改成你的 API Key
+    const hostId = "myKTVHost123"; // 固定 ID
+    let peer, conn, nextPageToken = null, prevPageToken = null;
 
     peer = new Peer();
-    function connect() {
-      const hostId = document.getElementById("peerId").value.trim();
-      conn = peer.connect(hostId);
-      conn.on("open", () => {
-        document.getElementById("conn-status").innerText = "✅ 已連線到 Host";
-      });
-    }
+    conn = peer.connect(hostId);
+    conn.on("open", () => {
+      document.getElementById("conn-status").innerText = "✅ 已連線 Host";
+    });
+    conn.on("error", err => {
+      document.getElementById("conn-status").innerText = "❌ 無法連線 Host";
+      console.error(err);
+    });
 
     function sendToHost(msg) {
       if (conn && conn.open) conn.send(msg);
       else alert("❌ 尚未連線到 Host");
     }
 
-    async function searchYT() {
+    async function searchYT(pageToken="") {
       const query = document.getElementById("search").value.trim();
       if (!query) return alert("請輸入關鍵字");
-      if (API_KEY === "YOUR_YOUTUBE_API_KEY") {
-        alert("⚠️ 請先填入有效的 YouTube API Key！");
-        return;
-      }
-      const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=5&q=${encodeURIComponent(query)}&key=${API_KEY}`;
+      let url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=20&q=${encodeURIComponent(query)}&key=${API_KEY}`;
+      if (pageToken) url += `&pageToken=${pageToken}`;
       try {
         const res = await fetch(url);
         const data = await res.json();
-        if (data.error) {
-          alert("❌ 搜尋失敗：" + data.error.message);
-          console.error("API Error:", data.error);
-          return;
-        }
+        if (data.error) return alert("❌ 搜尋失敗：" + data.error.message);
+
+        nextPageToken = data.nextPageToken || null;
+        prevPageToken = data.prevPageToken || null;
+
         const list = data.items.map(item => {
           const vid = item.id.videoId;
           const title = item.snippet.title.replace(/'/g, "");
-          return `<div style="margin:5px 0; padding:5px; border-bottom:1px solid #444;">
-            🎵 ${title}<br>
-            <button onclick="enqueue('${vid}', '${title}')">佇列</button>
-            <button onclick="insertNext('${vid}', '${title}')">插播</button>
-          </div>`;
+          const channel = item.snippet.channelTitle;
+          const date = new Date(item.snippet.publishedAt).toLocaleDateString();
+          const thumb = item.snippet.thumbnails?.default?.url || "";
+          return `
+            <div style="display:flex;gap:8px;align-items:center;margin:6px 0;border-bottom:1px solid #444;padding:4px;">
+              <img src="${thumb}" alt="thumb" width="90" height="60">
+              <div style="flex:1">
+                <div style="font-weight:600">${title}</div>
+                <div style="font-size:12px;opacity:0.7">${channel} · ${date}</div>
+              </div>
+              <button onclick="enqueue('${vid}','${title}')">佇列</button>
+              <button onclick="insertNext('${vid}','${title}')">插播</button>
+            </div>`;
         }).join("");
+
         document.getElementById("results").innerHTML = list || "— 沒找到結果 —";
+        document.getElementById("pager").innerHTML = `
+          ${prevPageToken ? `<button onclick="searchYT('${prevPageToken}')">⬅ 上一頁</button>` : ""}
+          ${nextPageToken ? `<button onclick="searchYT('${nextPageToken}')">下一頁 ➡</button>` : ""}
+        `;
       } catch (err) {
         alert("❌ 搜尋請求失敗，請檢查網路或 API Key");
-        console.error("Fetch error:", err);
+        console.error(err);
       }
     }
 
-    function enqueue(videoId, title) {
-      sendToHost({type:"enqueue", payload:{videoId, title}});
-    }
-    function insertNext(videoId, title) {
-      sendToHost({type:"insertNext", payload:{videoId, title}});
-    }
+    function enqueue(videoId, title) { sendToHost({type:"enqueue", payload:{videoId, title}}); }
+    function insertNext(videoId, title) { sendToHost({type:"insertNext", payload:{videoId, title}}); }
   </script>
 </body>
 </html>
