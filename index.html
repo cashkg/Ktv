@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <title>Web KTV Demo</title>
 </head>
-<body style="background:#0b0f1a; color:#e8edf3; font-family:sans-serif;">
+<body style="background:#0b0f1a; color:#e8edf3; font-family:sans-serif; padding:20px;">
 
   <h1>🎤 Web KTV Demo</h1>
   <div id="status">⏳ 等待載入中…</div>
 
-  <!-- YouTube Player -->
+  <!-- 播放器容器 -->
   <div id="player" style="margin-top:12px; width:100%; max-width:640px; aspect-ratio:16/9;"></div>
 
   <!-- 貼上 YouTube 連結 -->
@@ -24,13 +24,12 @@
     let player;
     let isReady = false;
 
-    // API 載入後會自動呼叫這個函式
     function onYouTubeIframeAPIReady() {
       console.log("✅ YouTube API 已載入");
       player = new YT.Player("player", {
         height: "360",
         width: "640",
-        videoId: "", // 預設空
+        videoId: "", // 預設空白
         events: {
           'onReady': onPlayerReady,
           'onStateChange': onPlayerStateChange
@@ -43,13 +42,13 @@
       document.getElementById("status").innerText = "✅ 播放器已準備完成";
     }
 
-    function onPlayerStateChange(event) {
-      console.log("狀態改變：", event.data);
+    function onPlayerStateChange(e) {
+      console.log("播放器狀態改變：", e.data);
     }
 
     function loadVideo() {
       if (!isReady) {
-        alert("播放器尚未準備好，請再試一次");
+        alert("播放器尚未準備好，請稍候再試");
         return;
       }
       const url = document.getElementById("url").value.trim();
