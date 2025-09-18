@@ -1,132 +1,64 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8" />
-  <title>Web KTV Demo (離線版)</title>
-  <style>
-    body { font-family: sans-serif; background:#0b0f1a; color:#e8edf3; margin:20px; }
-    #player { width:100%; max-width:800px; aspect-ratio:16/9; margin-bottom:10px; }
-    input, button { padding:8px; margin:4px; }
-    .queue { margin-top:20px; }
-    .queue-item { padding:6px; border-bottom:1px solid #334; }
-    #status { margin-top:10px; font-weight:bold; }
-  </style>
+  <meta charset="UTF-8">
+  <title>Web KTV Demo</title>
 </head>
-<body>
-  <h1>🎤 Web KTV Demo (離線版)</h1>
-  <div id="player"></div>
+<body style="background:#0b0f1a; color:#e8edf3; font-family:sans-serif;">
 
-  <button onclick="startPlayer()">👉 開始播放授權</button>
-  <p id="status" style="color:orange">等待播放器載入中…</p>
+  <h1>🎤 Web KTV Demo</h1>
+  <div id="status">⏳ 等待載入中…</div>
 
-  <div>
-    <input id="urlInput" placeholder="貼上 YouTube 連結或影片 ID" size="50" />
-    <button onclick="addToQueue()">加入佇列</button>
-    <button onclick="playNext()">下一首</button>
+  <!-- YouTube Player -->
+  <div id="player" style="margin-top:12px; width:100%; max-width:640px; aspect-ratio:16/9;"></div>
+
+  <!-- 貼上 YouTube 連結 -->
+  <div style="margin-top:12px;">
+    <input id="url" placeholder="貼上 YouTube 連結" style="width:60%;" />
+    <button onclick="loadVideo()">播放</button>
   </div>
 
-  <div class="queue">
-    <h3>播放佇列</h3>
-    <div id="queueList"></div>
-  </div>
-
-  <!-- 直接內嵌 YouTube IFrame API -->
-  <script>
-  // YouTube API Inline
-  var YT, YTConfig;
-  (function() {
-    var l = window.location;
-    YTConfig = {'host': l.protocol + "//www.youtube.com"};
-    var e = document.createElement("script");
-    e.src = YTConfig.host + "/s/player/38d0f4c7/www-widgetapi.vflset/www-widgetapi.js";
-    e.async = true;
-    var n = document.getElementsByTagName("script")[0];
-    n.parentNode.insertBefore(e, n);
-  })();
-  </script>
-
+  <!-- 載入 YouTube IFrame API -->
+  <script src="https://www.youtube.com/iframe_api"></script>
   <script>
     let player;
-    let queue = [];
-    let current = null;
     let isReady = false;
 
-    window.onYouTubeIframeAPIReady = () => {
-      player = new YT.Player('player', {
-        videoId: '',
-        playerVars: { rel:0, modestbranding:1, playsinline:1 },
+    // API 載入後會自動呼叫這個函式
+    function onYouTubeIframeAPIReady() {
+      console.log("✅ YouTube API 已載入");
+      player = new YT.Player("player", {
+        height: "360",
+        width: "640",
+        videoId: "", // 預設空
         events: {
-          onReady: () => {
-            isReady = true;
-            document.getElementById("status").textContent = "✅ 播放器已準備完成，可以開始點歌！";
-            document.getElementById("status").style.color = "lightgreen";
-          },
-          onStateChange: e => {
-            if (e.data === YT.PlayerState.ENDED) playNext();
-          }
+          'onReady': onPlayerReady,
+          'onStateChange': onPlayerStateChange
         }
       });
-    };
-
-    function parseId(url) {
-      try {
-        if (/^[0-9A-Za-z_-]{11}$/.test(url)) return url;
-        let vParam = url.match(/[?&]v=([0-9A-Za-z_-]{11})/);
-        if (vParam) return vParam[1];
-        let shortUrl = url.match(/youtu\.be\/([0-9A-Za-z_-]{11})/);
-        if (shortUrl) return shortUrl[1];
-        let shortsUrl = url.match(/shorts\/([0-9A-Za-z_-]{11})/);
-        if (shortsUrl) return shortsUrl[1];
-        return null;
-      } catch (e) {
-        return null;
-      }
     }
 
-    function startPlayer() {
-      if (player && player.playVideo) {
-        player.playVideo();
-        alert("播放器已啟用，可以開始點歌了！");
-      } else {
-        alert("播放器尚未準備好，請稍候再試。");
-      }
+    function onPlayerReady() {
+      isReady = true;
+      document.getElementById("status").innerText = "✅ 播放器已準備完成";
     }
 
-    function addToQueue() {
-      let input = document.getElementById('urlInput');
-      let id = parseId(input.value.trim());
-      if (!id) return alert("無法解析影片，請確認連結或 ID。");
-      queue.push({ id, title: input.value });
-      input.value = "";
-      renderQueue();
-      if (!current) playNext();
+    function onPlayerStateChange(event) {
+      console.log("狀態改變：", event.data);
     }
 
-    function playNext() {
+    function loadVideo() {
       if (!isReady) {
-        alert("播放器尚未準備好，請先按『開始播放授權』");
+        alert("播放器尚未準備好，請再試一次");
         return;
       }
-      if (queue.length === 0) {
-        current = null;
-        if (player) player.stopVideo();
-        renderQueue();
+      const url = document.getElementById("url").value.trim();
+      const match = url.match(/(?:v=|youtu\.be\/)([0-9A-Za-z_-]{11})/);
+      if (!match) {
+        alert("無法解析 YouTube 連結");
         return;
       }
-      current = queue.shift();
-      player.loadVideoById(current.id);
-      renderQueue();
-    }
-
-    function renderQueue() {
-      let qDiv = document.getElementById('queueList');
-      qDiv.innerHTML = "";
-      queue.forEach((q, i) => {
-        let div = document.createElement("div");
-        div.className = "queue-item";
-        div.textContent = `${i+1}. ${q.title}`;
-        qDiv.appendChild(div);
-      });
+      player.loadVideoById(match[1]);
     }
   </script>
 </body>
