@@ -23,7 +23,6 @@
   <h3>播放佇列</h3>
   <div id="queue"></div>
 
-  <!-- PeerJS -->
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script>
     let peer, conn;
@@ -31,8 +30,8 @@
     let currentVideo = null;
     let player;
 
-    // 初始化 PeerJS
-    peer = new Peer();
+    // 固定 Peer ID
+    peer = new Peer("myKTVHost123");
     peer.on("open", id => {
       document.getElementById("peer-info").innerText = "📡 Host Peer ID: " + id;
     });
@@ -61,8 +60,6 @@
         }
       });
     }
-
-    // 動態載入 YouTube API
     const tag = document.createElement("script");
     tag.src = "https://www.youtube.com/iframe_api";
     document.body.appendChild(tag);
@@ -80,7 +77,6 @@
         document.getElementById("queue").innerText = "— 空 —";
       }
     }
-
     function playById(videoId, title) {
       currentVideo = { videoId, title };
       if (player) {
@@ -93,15 +89,9 @@
 
     // 收到控制訊息
     function handleMsg(msg) {
-      console.log("收到訊息:", msg);
       switch (msg.type) {
-        case "enqueue":
-          queue.push(msg.payload);
-          if (!currentVideo) nextVideo();
-          break;
-        case "insertNext":
-          queue.unshift(msg.payload);
-          break;
+        case "enqueue": queue.push(msg.payload); if (!currentVideo) nextVideo(); break;
+        case "insertNext": queue.unshift(msg.payload); break;
         case "play": playVideo(); break;
         case "pause": pauseVideo(); break;
         case "next": nextVideo(); break;
@@ -111,8 +101,8 @@
 
     // 更新 UI
     function renderQueue() {
-      document.getElementById("queue").innerHTML = queue.map((q, i) =>
-        `<div>🎵 ${q.title} (${q.videoId})</div>`
+      document.getElementById("queue").innerHTML = queue.map(q =>
+        `<div>🎵 ${q.title}</div>`
       ).join("") || "— 空 —";
     }
   </script>
