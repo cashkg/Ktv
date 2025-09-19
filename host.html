@@ -31,7 +31,12 @@
     let player;
 
     // 固定 Peer ID
-    peer = new Peer("myKTVHost123");
+    peer = new Peer("myKTVHost123", {
+      host: "0.peerjs.com",
+      port: 443,
+      path: "/"
+    });
+
     peer.on("open", id => {
       document.getElementById("peer-info").innerText = "📡 Host Peer ID: " + id;
     });
