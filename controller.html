@@ -24,19 +24,31 @@
 
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script>
-    const API_KEY = "AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE"; // ← 改成你的 API Key
+    const API_KEY = "YOUR_YOUTUBE_API_KEY"; // ← 改成你的 API Key
     const hostId = "myKTVHost123"; // 固定 ID
     let peer, conn, nextPageToken = null, prevPageToken = null;
 
-    peer = new Peer();
-    conn = peer.connect(hostId);
-    conn.on("open", () => {
-      document.getElementById("conn-status").innerText = "✅ 已連線 Host";
+    peer = new Peer(null, {
+      host: "0.peerjs.com",
+      port: 443,
+      path: "/"
     });
-    conn.on("error", err => {
-      document.getElementById("conn-status").innerText = "❌ 無法連線 Host";
-      console.error(err);
-    });
+
+    function connectToHost() {
+      conn = peer.connect(hostId);
+      conn.on("open", () => {
+        document.getElementById("conn-status").innerText = "✅ 已連線 Host";
+      });
+      conn.on("error", () => {
+        document.getElementById("conn-status").innerText = "❌ 嘗試連線失敗，2 秒後重試…";
+        setTimeout(connectToHost, 2000);
+      });
+      conn.on("close", () => {
+        document.getElementById("conn-status").innerText = "⚠️ Host 斷線，重試中…";
+        setTimeout(connectToHost, 2000);
+      });
+    }
+    setTimeout(connectToHost, 1000);
 
     function sendToHost(msg) {
       if (conn && conn.open) conn.send(msg);
