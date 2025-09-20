@@ -19,11 +19,7 @@
 <body>
   <header>
     <h1>KTV 點歌控制器</h1>
-    <div>
-      <label>Host Peer ID：</label>
-      <input id="peer-id" placeholder="輸入 Host ID" />
-      <button onclick="connectHost()">連線</button>
-    </div>
+    <small>自動連線到 Host (ktv-host)</small>
     <nav>
       <button onclick="switchTab('tab-search')">搜尋 / 點歌</button>
       <button onclick="switchTab('tab-charts')">排行榜</button>
@@ -76,12 +72,11 @@
       document.getElementById(id).style.display = "block";
     }
 
+    // 自動連線到固定 ID
     function connectHost() {
-      const peerId = document.getElementById("peer-id").value.trim();
-      if (!peerId) return alert("請輸入 Host ID");
       const peer = new Peer();
-      conn = peer.connect(peerId);
-      conn.on("open", () => alert("✅ 已連線到 Host"));
+      conn = peer.connect("ktv-host");
+      conn.on("open", () => console.log("✅ 已連線 Host (ktv-host)"));
       conn.on("data", msg => {
         if (msg.type === "sync") {
           currentQueue = msg.payload.queue || [];
@@ -89,6 +84,7 @@
         }
       });
     }
+    window.onload = connectHost;
 
     function sendToHost(msg) {
       if (conn && conn.open) conn.send(msg);
@@ -96,7 +92,7 @@
     }
 
     // 搜尋 (YouTube API)
-    const API_KEY = "AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE"; // 你的 API Key
+    const API_KEY = "AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE";
     document.getElementById("searchForm").onsubmit = async (e) => {
       e.preventDefault();
       let q = document.getElementById("searchQuery").value;
@@ -117,19 +113,13 @@
       });
     };
 
-    function enqueue(id, title) {
-      sendToHost({ type: "enqueue", payload: { videoId:id, title:title } });
-    }
-    function insertNext(id, title) {
-      sendToHost({ type: "insertNext", payload: { videoId:id, title:title } });
-    }
+    function enqueue(id, title) { sendToHost({ type: "enqueue", payload: { videoId:id, title:title } }); }
+    function insertNext(id, title) { sendToHost({ type: "insertNext", payload: { videoId:id, title:title } }); }
     function playNow(id, title) {
       sendToHost({ type: "insertNext", payload: { videoId:id, title:title } });
-      sendToHost({ type: "next" }); // 讓 Host 立刻切歌
+      sendToHost({ type: "next" });
     }
-    function removeAt(idx) {
-      sendToHost({ type: "removeAt", payload: idx });
-    }
+    function removeAt(idx) { sendToHost({ type: "removeAt", payload: idx }); }
 
     function renderQueue() {
       queueEl.innerHTML = "";
@@ -145,7 +135,6 @@
       });
     }
 
-    // 排行榜切換
     function loadChart(source) {
       let url = "", name = "";
       switch (source) {
