@@ -69,7 +69,6 @@
   <script>
     const API_KEY="AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE";
     let conn, queue=[], history=[], favorites=[], needPIN=false;
-
     const urlParams=new URLSearchParams(window.location.search);
     const hostId=urlParams.get("host")||"ktv-host";
 
@@ -80,20 +79,56 @@
       if(tab==="history") renderHistory();
     }
 
-    function connectHost(){
-      const peer=new Peer(null, { host:"peerjs.com", port:443, path:"/" });
-      conn=peer.connect(hostId);
-      conn.on("open",()=> document.getElementById("status").innerText="✅ 已連線 Host("+hostId+")");
-      conn.on("data",(msg)=>{
-        if(msg.type==="sync"){ 
-          queue=msg.payload.queue||[]; 
-          history=msg.payload.history||[]; 
-          needPIN=msg.payload.needPIN;
-          renderQueue(); 
-        }
+    const options = {
+      host: "0.peerjs.com",
+      port: 443,
+      path: "/",
+      secure: true,
+      config: {
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:global.stun.twilio.com:3478?transport=udp" }
+        ]
+      }
+    };
+
+    function connectWithRetry(attempt=1) {
+      const peer = new Peer(null, options);
+
+      peer.on("open", id => {
+        document.getElementById("status").innerText = `🔌 Peer 就緒 (${id})`;
+        conn = peer.connect(hostId);
+
+        conn.on("open", () => {
+          document.getElementById("status").innerText = `✅ 已連線 Host(${hostId})`;
+        });
+
+        conn.on("data", msg => {
+          if(msg.type==="sync"){
+            queue=msg.payload.queue||[];
+            history=msg.payload.history||[];
+            needPIN=msg.payload.needPIN;
+            renderQueue();
+          }
+        });
+
+        conn.on("error", err => retry(err));
+        conn.on("close", () => retry("closed"));
       });
+
+      peer.on("error", err => retry(err));
+
+      function retry(reason) {
+        if (attempt > 8) {
+          document.getElementById("status").innerText = "❌ 無法連線 Host";
+          console.error("Connect failed:", reason);
+          return;
+        }
+        const delay = Math.pow(2, attempt) * 500;
+        document.getElementById("status").innerText = `⚠️ 連線失敗，${delay/1000}s 後重試 (${attempt})`;
+        setTimeout(() => connectWithRetry(attempt + 1), delay);
+      }
     }
-    connectHost();
 
     function getPIN(){ return document.getElementById("pinBox").value; }
     function send(msg){ if(conn&&conn.open) conn.send(msg); else alert("未連線 Host"); }
@@ -157,6 +192,8 @@
       }
       document.getElementById("charts-content").innerHTML=`<iframe src="${url}" width="100%" height="600px"></iframe>`;
     }
+
+    connectWithRetry();
   </script>
 </body>
 </html>
