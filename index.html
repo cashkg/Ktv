@@ -1,64 +1,41 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <title>Web KTV Demo</title>
+  <title>KTV 系統入口</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background:#0b0f1a; color:#e8edf3; text-align:center; padding:30px; }
+    h1 { margin-bottom:20px; }
+    .btn { display:inline-block; margin:12px; padding:12px 20px; border-radius:8px;
+           background:#1f2937; color:#e8edf3; border:1px solid #475569; cursor:pointer; }
+    .qr-container { display:flex; justify-content:center; gap:40px; margin-top:20px; flex-wrap:wrap; }
+    .qr-box { display:flex; flex-direction:column; align-items:center; gap:8px; }
+  </style>
 </head>
-<body style="background:#0b0f1a; color:#e8edf3; font-family:sans-serif; padding:20px;">
+<body>
+  <h1>KTV 系統入口</h1>
 
-  <h1>🎤 Web KTV Demo</h1>
-  <div id="status">⏳ 等待載入中…</div>
-
-  <!-- 播放器容器 -->
-  <div id="player" style="margin-top:12px; width:100%; max-width:640px; aspect-ratio:16/9;"></div>
-
-  <!-- 貼上 YouTube 連結 -->
-  <div style="margin-top:12px;">
-    <input id="url" placeholder="貼上 YouTube 連結" style="width:60%;" />
-    <button onclick="loadVideo()">播放</button>
+  <div>
+    <a href="host.html" class="btn">🎤 開啟主機端 (Host)</a>
+    <a href="controller.html" class="btn">📱 開啟點歌端 (Controller)</a>
   </div>
 
-  <!-- 載入 YouTube IFrame API -->
-  <script src="https://www.youtube.com/iframe_api"></script>
+  <div class="qr-container">
+    <div class="qr-box">
+      <div id="qr-host"></div>
+      <div>掃描 → Host</div>
+    </div>
+    <div class="qr-box">
+      <div id="qr-controller"></div>
+      <div>掃描 → Controller</div>
+    </div>
+  </div>
+
   <script>
-    let player;
-    let isReady = false;
-
-    function onYouTubeIframeAPIReady() {
-      console.log("✅ YouTube API 已載入");
-      player = new YT.Player("player", {
-        height: "360",
-        width: "640",
-        videoId: "", // 預設空白
-        events: {
-          'onReady': onPlayerReady,
-          'onStateChange': onPlayerStateChange
-        }
-      });
-    }
-
-    function onPlayerReady() {
-      isReady = true;
-      document.getElementById("status").innerText = "✅ 播放器已準備完成";
-    }
-
-    function onPlayerStateChange(e) {
-      console.log("播放器狀態改變：", e.data);
-    }
-
-    function loadVideo() {
-      if (!isReady) {
-        alert("播放器尚未準備好，請稍候再試");
-        return;
-      }
-      const url = document.getElementById("url").value.trim();
-      const match = url.match(/(?:v=|youtu\.be\/)([0-9A-Za-z_-]{11})/);
-      if (!match) {
-        alert("無法解析 YouTube 連結");
-        return;
-      }
-      player.loadVideoById(match[1]);
-    }
+    const baseUrl = window.location.origin + window.location.pathname.replace("index.html", "");
+    new QRCode(document.getElementById("qr-host"), baseUrl + "host.html");
+    new QRCode(document.getElementById("qr-controller"), baseUrl + "controller.html");
   </script>
 </body>
 </html>
