@@ -1,104 +1,167 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <title>KTV Controller</title>
+  <meta charset="UTF-8" />
+  <title>KTV 點歌控制器</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#0b0f1a; color:#e8edf3; margin:0; }
+    header { padding:12px; border-bottom:1px solid #223; }
+    h1 { font-size:20px; margin:0; }
+    nav { margin-top:8px; display:flex; gap:10px; }
+    nav button { padding:8px 12px; border-radius:8px; border:1px solid #475569; background:#1f2937; color:#e8edf3; cursor:pointer; }
+    .tab { display:none; padding:12px; }
+    .card { padding:12px; border:1px solid #223; border-radius:12px; background:#0f1524; margin-bottom:12px; }
+    .list { display:grid; gap:8px; max-height:45vh; overflow-y:auto; }
+    .listItem { display:flex; justify-content:space-between; align-items:center; padding:8px; border:1px solid #223; border-radius:8px; }
+    .btnSm { padding:4px 8px; font-size:12px; border-radius:6px; border:1px solid #475569; background:#1f2937; color:#e8edf3; cursor:pointer; }
+  </style>
 </head>
-<body style="background:#111; color:#eee; font-family:sans-serif; padding:20px;">
+<body>
+  <header>
+    <h1>KTV 點歌控制器</h1>
+    <div>
+      <label>Host Peer ID：</label>
+      <input id="peer-id" placeholder="輸入 Host ID" />
+      <button onclick="connectHost()">連線</button>
+    </div>
+    <nav>
+      <button onclick="switchTab('tab-search')">搜尋 / 點歌</button>
+      <button onclick="switchTab('tab-charts')">排行榜</button>
+    </nav>
+  </header>
 
-  <h1>📱 KTV Controller（點歌端）</h1>
-  <div id="conn-status" style="margin:5px 0;"></div>
+  <!-- 搜尋/點歌子頁 -->
+  <div id="tab-search" class="tab" style="display:block;">
+    <div class="card">
+      <form id="searchForm">
+        <input id="searchQuery" placeholder="歌名、歌手" style="width:70%;" />
+        <button type="submit">搜尋</button>
+      </form>
+    </div>
+    <div class="card">
+      <div>搜尋結果</div>
+      <div id="searchResults" class="list"></div>
+    </div>
+    <div class="card">
+      <div>播放佇列</div>
+      <div id="queue" class="list"></div>
+    </div>
+  </div>
 
-  <!-- 搜尋區塊 -->
-  <h3>搜尋歌曲</h3>
-  <input id="search" placeholder="輸入歌名或歌手">
-  <button onclick="searchYT()">搜尋</button>
-  <div id="results" style="margin-top:10px;"></div>
-  <div id="pager" style="margin-top:10px;"></div>
-
-  <!-- 控制 -->
-  <h3>控制播放</h3>
-  <button onclick="sendToHost({type:'play'})">▶ 播放</button>
-  <button onclick="sendToHost({type:'pause'})">⏸ 暫停</button>
-  <button onclick="sendToHost({type:'next'})">⏭ 下一首</button>
+  <!-- 排行榜子頁 -->
+  <div id="tab-charts" class="tab">
+    <h3>熱門排行榜</h3>
+    <div style="margin-bottom:10px;">
+      <button onclick="loadChart('cashbox')">錢櫃</button>
+      <button onclick="loadChart('holiday')">好樂迪</button>
+      <button onclick="loadChart('silverbox')">SilverBox</button>
+      <button onclick="loadChart('starlight')">星光大道</button>
+      <button onclick="loadChart('spotify')">Spotify</button>
+      <button onclick="loadChart('ytmusic')">YouTube Music</button>
+    </div>
+    <div id="charts-content" style="border:1px solid #444; border-radius:6px; min-height:600px;">
+      👉 請選擇排行榜來源
+    </div>
+  </div>
 
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script>
-    const API_KEY = "AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE"; // ← 改成你的 API Key
-    const hostId = "myKTVHost123"; // 固定 ID
-    let peer, conn, nextPageToken = null, prevPageToken = null;
+    let conn = null;
+    let searchResultsEl = document.getElementById("searchResults");
+    let queueEl = document.getElementById("queue");
+    let currentQueue = [];
 
-    peer = new Peer(null, {
-      host: "0.peerjs.com",
-      port: 443,
-      path: "/"
-    });
+    function switchTab(id) {
+      document.querySelectorAll(".tab").forEach(el => el.style.display = "none");
+      document.getElementById(id).style.display = "block";
+    }
 
-    function connectToHost() {
-      conn = peer.connect(hostId);
-      conn.on("open", () => {
-        document.getElementById("conn-status").innerText = "✅ 已連線 Host";
-      });
-      conn.on("error", () => {
-        document.getElementById("conn-status").innerText = "❌ 嘗試連線失敗，2 秒後重試…";
-        setTimeout(connectToHost, 2000);
-      });
-      conn.on("close", () => {
-        document.getElementById("conn-status").innerText = "⚠️ Host 斷線，重試中…";
-        setTimeout(connectToHost, 2000);
+    function connectHost() {
+      const peerId = document.getElementById("peer-id").value.trim();
+      if (!peerId) return alert("請輸入 Host ID");
+      const peer = new Peer();
+      conn = peer.connect(peerId);
+      conn.on("open", () => alert("✅ 已連線到 Host"));
+      conn.on("data", msg => {
+        if (msg.type === "sync") {
+          currentQueue = msg.payload.queue || [];
+          renderQueue();
+        }
       });
     }
-    setTimeout(connectToHost, 1000);
 
     function sendToHost(msg) {
       if (conn && conn.open) conn.send(msg);
-      else alert("❌ 尚未連線到 Host");
+      else alert("尚未連線到 Host");
     }
 
-    async function searchYT(pageToken="") {
-      const query = document.getElementById("search").value.trim();
-      if (!query) return alert("請輸入關鍵字");
-      let url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=20&q=${encodeURIComponent(query)}&key=${API_KEY}`;
-      if (pageToken) url += `&pageToken=${pageToken}`;
-      try {
-        const res = await fetch(url);
-        const data = await res.json();
-        if (data.error) return alert("❌ 搜尋失敗：" + data.error.message);
+    // 搜尋 (YouTube API)
+    const API_KEY = "AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE"; // 你的 API Key
+    document.getElementById("searchForm").onsubmit = async (e) => {
+      e.preventDefault();
+      let q = document.getElementById("searchQuery").value;
+      if (!q) return;
+      let url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=10&q=${encodeURIComponent(q)}&key=${API_KEY}`;
+      let res = await fetch(url);
+      let data = await res.json();
+      searchResultsEl.innerHTML = "";
+      (data.items || []).forEach(it => {
+        let div = document.createElement("div");
+        div.className = "listItem";
+        div.innerHTML = `<div>${it.snippet.title}</div>
+          <div>
+            <button class="btnSm" onclick='enqueue("${it.id.videoId}", "${it.snippet.title}")'>佇列</button>
+            <button class="btnSm" onclick='insertNext("${it.id.videoId}", "${it.snippet.title}")'>插播</button>
+          </div>`;
+        searchResultsEl.appendChild(div);
+      });
+    };
 
-        nextPageToken = data.nextPageToken || null;
-        prevPageToken = data.prevPageToken || null;
+    function enqueue(id, title) {
+      sendToHost({ type: "enqueue", payload: { videoId:id, title:title } });
+    }
+    function insertNext(id, title) {
+      sendToHost({ type: "insertNext", payload: { videoId:id, title:title } });
+    }
+    function playNow(id, title) {
+      sendToHost({ type: "insertNext", payload: { videoId:id, title:title } });
+      sendToHost({ type: "next" }); // 讓 Host 立刻切歌
+    }
+    function removeAt(idx) {
+      sendToHost({ type: "removeAt", payload: idx });
+    }
 
-        const list = data.items.map(item => {
-          const vid = item.id.videoId;
-          const title = item.snippet.title.replace(/'/g, "");
-          const channel = item.snippet.channelTitle;
-          const date = new Date(item.snippet.publishedAt).toLocaleDateString();
-          const thumb = item.snippet.thumbnails?.default?.url || "";
-          return `
-            <div style="display:flex;gap:8px;align-items:center;margin:6px 0;border-bottom:1px solid #444;padding:4px;">
-              <img src="${thumb}" alt="thumb" width="90" height="60">
-              <div style="flex:1">
-                <div style="font-weight:600">${title}</div>
-                <div style="font-size:12px;opacity:0.7">${channel} · ${date}</div>
-              </div>
-              <button onclick="enqueue('${vid}','${title}')">佇列</button>
-              <button onclick="insertNext('${vid}','${title}')">插播</button>
-            </div>`;
-        }).join("");
+    function renderQueue() {
+      queueEl.innerHTML = "";
+      currentQueue.forEach((q, idx) => {
+        let div = document.createElement("div");
+        div.className = "listItem";
+        div.innerHTML = `<div>${q.title}</div>
+          <div>
+            <button class="btnSm" onclick='playNow("${q.videoId}", "${q.title}")'>立即播放</button>
+            <button class="btnSm" onclick="removeAt(${idx})">刪除</button>
+          </div>`;
+        queueEl.appendChild(div);
+      });
+    }
 
-        document.getElementById("results").innerHTML = list || "— 沒找到結果 —";
-        document.getElementById("pager").innerHTML = `
-          ${prevPageToken ? `<button onclick="searchYT('${prevPageToken}')">⬅ 上一頁</button>` : ""}
-          ${nextPageToken ? `<button onclick="searchYT('${nextPageToken}')">下一頁 ➡</button>` : ""}
-        `;
-      } catch (err) {
-        alert("❌ 搜尋請求失敗，請檢查網路或 API Key");
-        console.error(err);
+    // 排行榜切換
+    function loadChart(source) {
+      let url = "", name = "";
+      switch (source) {
+        case "cashbox": url="https://www.cashboxparty.com/Music/KTVMusic.aspx"; name="錢櫃"; break;
+        case "holiday": url="https://www.holiday.com.tw/SongInfo/SongList.aspx?lt=tc&st=top"; name="好樂迪"; break;
+        case "silverbox": url="https://www.silverbox.com.tw/rank/"; name="SilverBox"; break;
+        case "starlight": url="https://www.starlightktv.com.tw/Song.xsp?exec=Song%2FClass%2Flist"; name="星光大道"; break;
+        case "spotify": url="https://charts.spotify.com/charts/overview/global"; name="Spotify"; break;
+        case "ytmusic": url="https://charts.youtube.com/charts/TrendingSongs/tw"; name="YouTube Music"; break;
       }
+      document.getElementById("charts-content").innerHTML = `
+        <iframe src="${url}" width="100%" height="600px" style="border:none; border-radius:6px;"
+          onerror="this.parentNode.innerHTML='<a href=${url} target=_blank>👉 開啟 ${name} 排行榜</a>'">
+        </iframe>
+      `;
     }
-
-    function enqueue(videoId, title) { sendToHost({type:"enqueue", payload:{videoId, title}}); }
-    function insertNext(videoId, title) { sendToHost({type:"insertNext", payload:{videoId, title}}); }
   </script>
 </body>
 </html>
