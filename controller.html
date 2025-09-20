@@ -67,7 +67,7 @@
 
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script>
-    const API_KEY="AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE"; // 建議放 Proxy，不要硬編碼
+    const API_KEY="AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE"; // ✅ 你提供的金鑰
     let conn, queue=[], history=[], favorites=[], needPIN=false;
 
     const hostId = new URLSearchParams(window.location.search).get("host") || "ktv-host";
@@ -123,9 +123,67 @@
       }
     }
 
-    // 搜尋功能略，保留原本程式
-    // 收藏/歷史 render 也沿用原本程式
-    // ...
+    // ✅ 搜尋功能補上 API_KEY
+    document.getElementById("searchForm").onsubmit=async(e)=>{
+      e.preventDefault();
+      let q=document.getElementById("searchQuery").value; if(!q) return;
+      let url=`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=10&q=${encodeURIComponent(q)}&key=${API_KEY}`;
+      let res=await fetch(url); let data=await res.json();
+      const el=document.getElementById("searchResults"); el.innerHTML="";
+      (data.items||[]).forEach(it=>{
+        el.innerHTML+=`<div class="listItem"><div>${it.snippet.title}</div>
+        <div>
+          <button class="btnSm" onclick='send({type:"enqueue",payload:{videoId:"${it.id.videoId}",title:"${it.snippet.title}"}})'>佇列</button>
+          <button class="btnSm" onclick='send({type:"insertNext",pin:getPIN(),payload:{videoId:"${it.id.videoId}",title:"${it.snippet.title}"}})'>插播</button>
+          <button class="btnSm" onclick='addFavorite("${it.id.videoId}","${it.snippet.title}")'>⭐ 收藏</button>
+        </div></div>`;
+      });
+    };
+
+    function renderQueue(){
+      const el=document.getElementById("queue"); el.innerHTML="";
+      queue.forEach((q,i)=>{
+        el.innerHTML+=`<div class="listItem"><div>${q.title}</div>
+        <div>
+          <button class="btnSm" onclick='send({type:"next",pin:getPIN()})'>立即播放</button>
+          <button class="btnSm" onclick='send({type:"removeAt",pin:getPIN(),payload:${i}})'>刪除</button>
+        </div></div>`;
+      });
+    }
+
+    function addFavorite(id,title){
+      favorites.push({videoId:id,title});
+      localStorage.setItem("favorites",JSON.stringify(favorites));
+      alert("已收藏："+title);
+    }
+    function renderFavorites(){
+      favorites=JSON.parse(localStorage.getItem("favorites")||"[]");
+      const el=document.getElementById("favoritesList"); el.innerHTML="";
+      favorites.forEach(f=>{
+        el.innerHTML+=`<div class="listItem"><div>${f.title}</div>
+        <button class="btnSm" onclick='send({type:"enqueue",payload:${JSON.stringify(f)}})'>播放</button></div>`;
+      });
+    }
+
+    function renderHistory(){
+      const el=document.getElementById("historyList"); el.innerHTML="";
+      history.forEach(h=>{
+        el.innerHTML+=`<div class="listItem"><div>${h.title}</div>
+        <button class="btnSm" onclick='send({type:"enqueue",payload:${JSON.stringify(h)}})'>再唱一次</button></div>`;
+      });
+    }
+
+    function loadChart(source){
+      let url="";
+      switch(source){
+        case "ytmusic": url="https://charts.youtube.com/charts/TrendingSongs/tw"; break;
+        case "spotify": url="https://charts.spotify.com/charts/overview/global"; break;
+        case "kkbox": url="https://kma.kkbox.com/charts/weekly/newrelease?lang=tc"; break;
+        case "apple": url="https://music.apple.com/tw/browse/top-charts"; break;
+      }
+      document.getElementById("charts-content").innerHTML=`<iframe src="${url}" width="100%" height="600px"></iframe>`;
+    }
+
     connectWithRetry();
   </script>
 </body>
