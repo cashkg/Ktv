@@ -7,35 +7,39 @@
   <style>
     body { font-family: Arial, sans-serif; background:#0b0f1a; color:#e8edf3; text-align:center; padding:30px; }
     h1 { margin-bottom:20px; }
-    .btn { display:inline-block; margin:12px; padding:12px 20px; border-radius:8px;
-           background:#1f2937; color:#e8edf3; border:1px solid #475569; cursor:pointer; }
     .qr-container { display:flex; justify-content:center; gap:40px; margin-top:20px; flex-wrap:wrap; }
     .qr-box { display:flex; flex-direction:column; align-items:center; gap:8px; }
+    .link { margin-top:8px; }
+    a { color:#60a5fa; text-decoration:none; }
   </style>
 </head>
 <body>
   <h1>KTV 系統入口</h1>
-
-  <div>
-    <a href="host.html" class="btn">🎤 開啟主機端 (Host)</a>
-    <a href="controller.html" class="btn">📱 開啟點歌端 (Controller)</a>
-  </div>
+  <p>請用不同裝置掃描以下 QR Code 進入 <b>Host</b> 或 <b>Controller</b></p>
 
   <div class="qr-container">
     <div class="qr-box">
       <div id="qr-host"></div>
-      <div>掃描 → Host</div>
+      <div class="link"><a id="link-host" target="_blank">👉 開啟 Host</a></div>
     </div>
     <div class="qr-box">
       <div id="qr-controller"></div>
-      <div>掃描 → Controller</div>
+      <div class="link"><a id="link-controller" target="_blank">👉 開啟 Controller</a></div>
     </div>
   </div>
 
   <script>
+    const hostId = "ktv-" + Math.random().toString(36).substring(2, 6);
     const baseUrl = window.location.origin + window.location.pathname.replace("index.html", "");
-    new QRCode(document.getElementById("qr-host"), baseUrl + "host.html");
-    new QRCode(document.getElementById("qr-controller"), baseUrl + "controller.html");
+
+    const hostUrl = baseUrl + "host.html?host=" + hostId;
+    const controllerUrl = baseUrl + "controller.html?host=" + hostId;
+
+    document.getElementById("link-host").href = hostUrl;
+    document.getElementById("link-controller").href = controllerUrl;
+
+    new QRCode(document.getElementById("qr-host"), hostUrl);
+    new QRCode(document.getElementById("qr-controller"), controllerUrl);
   </script>
 </body>
 </html>
