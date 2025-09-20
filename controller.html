@@ -11,6 +11,8 @@
     .card { padding:12px; border:1px solid #223; border-radius:12px; background:#0f1524; margin-bottom:12px; }
     .list { display:grid; gap:8px; max-height:45vh; overflow-y:auto; }
     .listItem { display:flex; justify-content:space-between; align-items:center; padding:8px; border:1px solid #223; border-radius:8px; }
+    .listInfo { display:flex; align-items:center; gap:10px; }
+    .thumb { width:80px; border-radius:6px; }
     .btnSm { padding:4px 8px; font-size:12px; border-radius:6px; border:1px solid #475569; background:#1f2937; color:#e8edf3; cursor:pointer; }
   </style>
 </head>
@@ -30,9 +32,10 @@
 
   <div id="tab-search" class="tab" style="display:block;">
     <div class="card">
-      <form id="searchForm">
+      <!-- 改成 onsubmit="return false"，避免重整 -->
+      <form id="searchForm" onsubmit="return false;">
         <input id="searchQuery" placeholder="歌名、歌手" style="width:70%;" />
-        <button type="submit">搜尋</button>
+        <button type="button" onclick="doSearch()">搜尋</button>
       </form>
     </div>
     <div class="card"><div>搜尋結果</div><div id="searchResults" class="list"></div></div>
@@ -67,7 +70,7 @@
 
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script>
-    const API_KEY="AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE"; // ✅ 你提供的金鑰
+    const API_KEY="AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE"; // 你提供的金鑰
     let conn, queue=[], history=[], favorites=[], needPIN=false;
 
     const hostId = new URLSearchParams(window.location.search).get("host") || "ktv-host";
@@ -123,22 +126,33 @@
       }
     }
 
-    // ✅ 搜尋功能補上 API_KEY
-    document.getElementById("searchForm").onsubmit=async(e)=>{
-      e.preventDefault();
-      let q=document.getElementById("searchQuery").value; if(!q) return;
-      let url=`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=10&q=${encodeURIComponent(q)}&key=${API_KEY}`;
-      let res=await fetch(url); let data=await res.json();
-      const el=document.getElementById("searchResults"); el.innerHTML="";
-      (data.items||[]).forEach(it=>{
-        el.innerHTML+=`<div class="listItem"><div>${it.snippet.title}</div>
-        <div>
-          <button class="btnSm" onclick='send({type:"enqueue",payload:{videoId:"${it.id.videoId}",title:"${it.snippet.title}"}})'>佇列</button>
-          <button class="btnSm" onclick='send({type:"insertNext",pin:getPIN(),payload:{videoId:"${it.id.videoId}",title:"${it.snippet.title}"}})'>插播</button>
-          <button class="btnSm" onclick='addFavorite("${it.id.videoId}","${it.snippet.title}")'>⭐ 收藏</button>
-        </div></div>`;
-      });
-    };
+    // ✅ 搜尋功能，避免重整 + 顯示縮圖
+    async function doSearch(){
+      let q=document.getElementById("searchQuery").value;
+      if(!q) return;
+      try {
+        let url=`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=10&q=${encodeURIComponent(q)}&key=${API_KEY}`;
+        let res=await fetch(url);
+        let data=await res.json();
+        const el=document.getElementById("searchResults"); el.innerHTML="";
+        (data.items||[]).forEach(it=>{
+          let vid=it.id.videoId, title=it.snippet.title, thumb=it.snippet.thumbnails.default.url;
+          el.innerHTML+=`<div class="listItem">
+            <div class="listInfo">
+              <img class="thumb" src="${thumb}" />
+              <div>${title}</div>
+            </div>
+            <div>
+              <button class="btnSm" onclick='send({type:"enqueue",payload:{videoId:"${vid}",title:"${title}"}})'>佇列</button>
+              <button class="btnSm" onclick='send({type:"insertNext",pin:getPIN(),payload:{videoId:"${vid}",title:"${title}"}})'>插播</button>
+              <button class="btnSm" onclick='addFavorite("${vid}","${title}")'>⭐ 收藏</button>
+            </div>
+          </div>`;
+        });
+      } catch(err){
+        document.getElementById("searchResults").innerHTML=`<div style="color:red;">搜尋失敗: ${err}</div>`;
+      }
+    }
 
     function renderQueue(){
       const el=document.getElementById("queue"); el.innerHTML="";
