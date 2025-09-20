@@ -32,7 +32,6 @@
 
   <div id="tab-search" class="tab" style="display:block;">
     <div class="card">
-      <!-- 搜尋按鈕放左邊 -->
       <form id="searchForm" onsubmit="return false;" style="display:flex; gap:8px;">
         <button type="button" onclick="doSearch()">搜尋</button>
         <input id="searchQuery" placeholder="歌名、歌手" style="flex:1;" />
@@ -114,7 +113,10 @@
       peer.on("error", err=>retry(err));
 
       function retry(reason){
-        if(attempt>8){ document.getElementById("status").innerText="❌ 無法連線 Host"; return; }
+        if(attempt>8){ 
+          document.getElementById("status").innerText="❌ 無法連線 Host"; 
+          return; 
+        }
         const delay=Math.pow(2,attempt)*500;
         document.getElementById("status").innerText=`⚠️ 連線失敗，${delay/1000}s 後重試 (${attempt})`;
         setTimeout(()=>connectWithRetry(attempt+1),delay);
