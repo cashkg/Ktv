@@ -10,7 +10,7 @@
     .card { padding:12px; border:1px solid #223; border-radius:12px; background:#0f1524; margin:12px auto; width:90%; max-width:700px; }
     .list { display:grid; gap:8px; max-height:45vh; overflow-y:auto; }
     .listItem { display:flex; justify-content:space-between; align-items:center; padding:8px; border:1px solid #223; border-radius:8px; }
-    .btnSm { padding:6px 10px; border-radius:6px; border:1px solid #475569; background:#1f2937; color:#e8edf3; cursor:pointer; font-size:12px; }
+    .btnSm { padding:6px 10px; border-radius:6px; border:1px solid #475569; background:#1f2937; color:#e8edf3; cursor:pointer; font-size:12px; margin-left:4px; }
   </style>
 </head>
 <body>
@@ -88,6 +88,8 @@
         case "insertNext": if(msg.pin===hostPIN) insertNext(msg.payload); break;
         case "removeAt": if(msg.pin===hostPIN) removeAt(msg.payload); break;
         case "next": if(msg.pin===hostPIN) playNext(); break;
+        case "moveUp": if(msg.pin===hostPIN) moveUp(msg.payload); break;
+        case "moveDown": if(msg.pin===hostPIN) moveDown(msg.payload); break;
         case "seek": if(player&&msg.pin===hostPIN) player.seekTo(msg.payload, true); break;
         case "sfx": playSFX(msg.payload); break;
       }
@@ -96,6 +98,19 @@
     function enqueue(item){ stopBGM(); queue.push(item); if(!current) playNext(); render(); sync(); }
     function insertNext(item){ stopBGM(); queue.unshift(item); render(); sync(); }
     function removeAt(i){ queue.splice(i,1); render(); sync(); }
+
+    function moveUp(i){
+      if(i>0){
+        [queue[i-1], queue[i]] = [queue[i], queue[i-1]];
+        render(); sync();
+      }
+    }
+    function moveDown(i){
+      if(i<queue.length-1){
+        [queue[i+1], queue[i]] = [queue[i], queue[i+1]];
+        render(); sync();
+      }
+    }
 
     function playNext(){
       if(current){ history.push(current); }
@@ -115,13 +130,18 @@
       const el=document.getElementById("queue"); el.innerHTML="";
       queue.forEach((q,i)=>{
         el.innerHTML+=`<div class="listItem"><div>${q.title}</div>
-        <button class="btnSm" onclick="removeAt(${i})">刪除</button></div>`;
+          <div>
+            <button class="btnSm" onclick="removeAt(${i})">刪除</button>
+            <button class="btnSm" onclick="insertNext(queue[${i}])">插播</button>
+            <button class="btnSm" onclick="moveUp(${i})">⬆️</button>
+            <button class="btnSm" onclick="moveDown(${i})">⬇️</button>
+          </div></div>`;
       });
     }
 
     function sync(){
       const payload={queue,current,history, needPIN:true, progress:player?player.getCurrentTime():0, duration:player?player.getDuration():0};
-      conns=conns.filter(c=>c.open);
+      conns = conns.filter(c=>c.open);
       conns.forEach(c=>c.send({type:"sync",payload}));
     }
     setInterval(()=> sync(),1000);
