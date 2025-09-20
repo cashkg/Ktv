@@ -45,7 +45,7 @@
     let conns = [];
     let queue = [], current = null, history = [];
     let hostPIN="1234";
-    const bgmList=["dQw4w9WgXcQ","oHg5SJYRHA0"]; // 預設 BGM 清單
+    const bgmList=["dQw4w9WgXcQ","oHg5SJYRHA0"];
     let bgmMode=false;
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -61,7 +61,7 @@
       sfxPlayer = new YT.Player(document.createElement("div"), { height:"0", width:"0" });
     }
 
-    peer = new Peer(hostId);
+    peer = new Peer(hostId, { host:"peerjs.com", port:443, path:"/" });
     peer.on("open", ()=> document.getElementById("status").innerText="✅ Host 啟動成功");
     peer.on("connection", (c)=>{
       conns.push(c);
@@ -123,9 +123,9 @@
 
     function playSFX(type){
       let vid="";
-      if(type==="clap") vid="5dfqf6VZ2dA"; // 掌聲
-      if(type==="cheer") vid="9Q7Vr3yQYWQ"; // 歡呼
-      if(type==="boo") vid="RovF3pF3lHg"; // 噓聲
+      if(type==="clap") vid="5dfqf6VZ2dA";
+      if(type==="cheer") vid="9Q7Vr3yQYWQ";
+      if(type==="boo") vid="RovF3pF3lHg";
       if(vid) sfxPlayer.loadVideoById(vid);
     }
   </script>
