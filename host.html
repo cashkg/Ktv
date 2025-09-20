@@ -43,25 +43,14 @@
   <script>
     let player, sfxPlayer, peer;
     let conns = [];
-    let queue = [], current = null, history = [];
+    let queue=[], current=null, history=[];
     let hostPIN="1234";
-    const bgmList=["dQw4w9WgXcQ","oHg5SJYRHA0"];
-    let bgmMode=false;
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const hostId = urlParams.get("host") || "ktv-host";
+    const hostId = new URLSearchParams(window.location.search).get("host") || "ktv-host";
     document.getElementById("peer-id").innerText = hostId;
     document.getElementById("pinInput").addEventListener("input", e=> hostPIN=e.target.value);
 
-    function onYouTubeIframeAPIReady() {
-      player = new YT.Player("player", {
-        height:"360", width:"640",
-        events:{ onStateChange:(e)=>{ if(e.data===YT.PlayerState.ENDED) playNext(); } }
-      });
-      sfxPlayer = new YT.Player(document.createElement("div"), { height:"0", width:"0" });
-    }
-
-    const options = {
+    const peerOptions = {
       host: "0.peerjs.com",
       port: 443,
       path: "/",
@@ -74,11 +63,18 @@
       }
     };
 
-    peer = new Peer(hostId, options);
-    peer.on("open", ()=> document.getElementById("status").innerText="✅ Host 啟動成功");
-    peer.on("connection", (c)=>{
+    function onYouTubeIframeAPIReady(){
+      player=new YT.Player("player",{height:"360",width:"640",events:{
+        onStateChange:(e)=>{ if(e.data===YT.PlayerState.ENDED) playNext(); }
+      }});
+      sfxPlayer=new YT.Player(document.createElement("div"),{height:"0",width:"0"});
+    }
+
+    peer=new Peer(hostId,peerOptions);
+    peer.on("open", id=>document.getElementById("status").innerText=`✅ Host 啟動成功 (${id})`);
+    peer.on("connection", c=>{
       conns.push(c);
-      c.on("data", handleMsg);
+      c.on("data", msg=>handleMsg(msg));
       c.on("close", cleanup);
       c.on("error", cleanup);
       sync();
@@ -90,19 +86,18 @@
         case "insertNext": if(msg.pin===hostPIN) insertNext(msg.payload); break;
         case "removeAt": if(msg.pin===hostPIN) removeAt(msg.payload); break;
         case "next": if(msg.pin===hostPIN) playNext(); break;
-        case "seek": if(player&&msg.pin===hostPIN) player.seekTo(msg.payload, true); break;
+        case "seek": if(player&&msg.pin===hostPIN) player.seekTo(msg.payload,true); break;
         case "sfx": playSFX(msg.payload); break;
       }
     }
 
-    function enqueue(item){ stopBGM(); queue.push(item); if(!current) playNext(); render(); sync(); }
-    function insertNext(item){ stopBGM(); queue.unshift(item); render(); sync(); }
+    function enqueue(item){ queue.push(item); if(!current) playNext(); render(); sync(); }
+    function insertNext(item){ queue.unshift(item); render(); sync(); }
     function removeAt(i){ queue.splice(i,1); render(); sync(); }
 
     function playNext(){
-      if(current){ history.push(current); }
-      if(queue.length===0){ current=null; document.getElementById("nowPlaying").innerText="暫無"; player.stopVideo(); startBGM(); sync(); return; }
-      stopBGM();
+      if(current) history.push(current);
+      if(queue.length===0){ current=null; document.getElementById("nowPlaying").innerText="暫無"; player.stopVideo(); sync(); return; }
       current=queue.shift();
       document.getElementById("nowPlaying").innerText=current.title;
       player.loadVideoById(current.videoId);
@@ -115,37 +110,22 @@
 
     function render(){
       const el=document.getElementById("queue"); el.innerHTML="";
-      queue.forEach((q,i)=>{
-        el.innerHTML+=`<div class="listItem"><div>${q.title}</div>
-        <button class="btnSm" onclick="removeAt(${i})">刪除</button></div>`;
-      });
+      queue.forEach((q,i)=>el.innerHTML+=`<div class="listItem"><div>${q.title}</div>
+        <button class="btnSm" onclick="removeAt(${i})">刪除</button></div>`);
     }
 
     function sync(){
-      const payload={queue,current,history, needPIN:true, progress:player?player.getCurrentTime():0, duration:player?player.getDuration():0};
-      conns = conns.filter(c => c.open);
-      conns.forEach(c=>{ if(c.open) c.send({type:"sync",payload}); });
+      const payload={queue,current,history,needPIN:true};
+      conns=conns.filter(c=>c.open); // ✅ 過濾死連線
+      conns.forEach(c=>c.send({type:"sync",payload}));
     }
-    setInterval(()=> sync(),1000);
-
-    function startBGM(){
-      if(bgmList.length===0) return;
-      bgmMode=true;
-      const bgmId=bgmList[Math.floor(Math.random()*bgmList.length)];
-      player.loadVideoById(bgmId);
-      document.getElementById("nowPlaying").innerText="🎶 背景音樂";
-    }
-    function stopBGM(){ if(bgmMode){ player.stopVideo(); bgmMode=false; } }
+    function cleanup(){ conns=conns.filter(c=>c.open); }
+    setInterval(sync,2000);
 
     function playSFX(type){
-      let vid="";
-      if(type==="clap") vid="5dfqf6VZ2dA";
-      if(type==="cheer") vid="9Q7Vr3yQYWQ";
-      if(type==="boo") vid="RovF3pF3lHg";
-      if(vid) sfxPlayer.loadVideoById(vid);
+      const map={clap:"5dfqf6VZ2dA",cheer:"9Q7Vr3yQYWQ",boo:"RovF3pF3lHg"};
+      if(map[type]) sfxPlayer.loadVideoById(map[type]);
     }
-
-    function cleanup(){ conns = conns.filter(c => c.open); }
   </script>
 </body>
 </html>
