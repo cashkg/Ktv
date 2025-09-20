@@ -82,12 +82,11 @@
       config: {
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
-          { urls: "stun:global.stun.twilio.com:3478?transport=udp" }
+          { urls: "stun:global.stun.twilio.com:3478" }
         ]
       }
     };
 
-    // 先鎖住所有按鈕，等連線成功再解鎖
     document.addEventListener("DOMContentLoaded", ()=>{
       document.querySelectorAll("button").forEach(b=>b.disabled=true);
     });
@@ -106,7 +105,7 @@
         conn = peer.connect(hostId);
         conn.on("open", ()=>{
           document.getElementById("status").innerText=`✅ 已連線 Host(${hostId})`;
-          document.querySelectorAll("button").forEach(b=>b.disabled=false); // 解鎖按鈕
+          document.querySelectorAll("button").forEach(b=>b.disabled=false);
         });
         conn.on("data", msg=>handleMsg(msg));
         conn.on("close", ()=>retry("closed"));
@@ -134,7 +133,6 @@
       }
     }
 
-    // 搜尋
     async function doSearch(){
       let q=document.getElementById("searchQuery").value;
       if(!q) return;
