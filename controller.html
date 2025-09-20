@@ -32,10 +32,10 @@
 
   <div id="tab-search" class="tab" style="display:block;">
     <div class="card">
-      <!-- 改成 onsubmit="return false"，避免重整 -->
-      <form id="searchForm" onsubmit="return false;">
-        <input id="searchQuery" placeholder="歌名、歌手" style="width:70%;" />
+      <!-- 搜尋按鈕放左邊 -->
+      <form id="searchForm" onsubmit="return false;" style="display:flex; gap:8px;">
         <button type="button" onclick="doSearch()">搜尋</button>
+        <input id="searchQuery" placeholder="歌名、歌手" style="flex:1;" />
       </form>
     </div>
     <div class="card"><div>搜尋結果</div><div id="searchResults" class="list"></div></div>
@@ -70,7 +70,7 @@
 
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script>
-    const API_KEY="AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE"; // 你提供的金鑰
+    const API_KEY="AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE";
     let conn, queue=[], history=[], favorites=[], needPIN=false;
 
     const hostId = new URLSearchParams(window.location.search).get("host") || "ktv-host";
@@ -87,6 +87,11 @@
       }
     };
 
+    // 先鎖住所有按鈕，等連線成功再解鎖
+    document.addEventListener("DOMContentLoaded", ()=>{
+      document.querySelectorAll("button").forEach(b=>b.disabled=true);
+    });
+
     function switchTab(tab){
       document.querySelectorAll(".tab").forEach(el=>el.style.display="none");
       document.getElementById("tab-"+tab).style.display="block";
@@ -99,7 +104,10 @@
       peer.on("open", id=>{
         document.getElementById("status").innerText=`🔌 Peer 就緒 (${id})`;
         conn = peer.connect(hostId);
-        conn.on("open", ()=> document.getElementById("status").innerText=`✅ 已連線 Host(${hostId})`);
+        conn.on("open", ()=>{
+          document.getElementById("status").innerText=`✅ 已連線 Host(${hostId})`;
+          document.querySelectorAll("button").forEach(b=>b.disabled=false); // 解鎖按鈕
+        });
         conn.on("data", msg=>handleMsg(msg));
         conn.on("close", ()=>retry("closed"));
         conn.on("error", err=>retry(err));
@@ -115,7 +123,7 @@
     }
 
     function getPIN(){ return document.getElementById("pinBox").value; }
-    function send(msg){ if(conn&&conn.open) conn.send(msg); else alert("未連線 Host"); }
+    function send(msg){ if(conn && conn.open) conn.send(msg); }
 
     function handleMsg(msg){
       if(msg.type==="sync"){
@@ -126,7 +134,7 @@
       }
     }
 
-    // ✅ 搜尋功能，避免重整 + 顯示縮圖
+    // 搜尋
     async function doSearch(){
       let q=document.getElementById("searchQuery").value;
       if(!q) return;
