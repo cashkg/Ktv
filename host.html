@@ -54,9 +54,9 @@
       });
     }
 
-    // 固定 ID = ktv-host
+    // 固定 ID
     peer = new Peer("ktv-host");
-    peer.on("open", () => console.log("Host ready, ID = ktv-host"));
+    peer.on("open", () => console.log("Host ready: ktv-host"));
     peer.on("connection", (c) => {
       conn = c;
       conn.on("data", handleMessage);
