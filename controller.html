@@ -13,7 +13,7 @@
     .listItem { display:flex; justify-content:space-between; align-items:center; padding:8px; border:1px solid #223; border-radius:8px; }
     .listInfo { display:flex; align-items:center; gap:10px; }
     .thumb { width:80px; border-radius:6px; }
-    .btnSm { padding:4px 8px; font-size:12px; border-radius:6px; border:1px solid #475569; background:#1f2937; color:#e8edf3; cursor:pointer; }
+    .btnSm { padding:4px 8px; font-size:12px; border-radius:6px; border:1px solid #475569; background:#1f2937; color:#e8edf3; cursor:pointer; margin-left:4px; }
   </style>
 </head>
 <body>
@@ -26,11 +26,17 @@
       <button onclick="switchTab('charts')">排行榜</button>
       <button onclick="switchTab('favorites')">收藏</button>
       <button onclick="switchTab('history')">歷史</button>
+      <button onclick="switchTab('queue')">播放佇列</button>
       <button onclick="switchTab('sfx')">音效</button>
     </div>
   </header>
 
+  <!-- 搜尋 / 點歌 -->
   <div id="tab-search" class="tab" style="display:block;">
+    <div class="card" style="background:#1a2235; border:2px solid #475569;">
+      <div><b>🎶 現在播放：</b> <span id="nowPlaying">暫無</span></div>
+      <div><b>⏭ 下一首：</b> <span id="nextSong">暫無</span></div>
+    </div>
     <div class="card">
       <form id="searchForm" onsubmit="return false;" style="display:flex; gap:8px;">
         <button type="button" onclick="doSearch()">搜尋</button>
@@ -38,28 +44,41 @@
       </form>
     </div>
     <div class="card"><div>搜尋結果</div><div id="searchResults" class="list"></div></div>
-    <div class="card"><div>播放佇列</div><div id="queue" class="list"></div></div>
   </div>
 
+  <!-- 排行榜 -->
   <div id="tab-charts" class="tab">
     <h3>熱門排行榜</h3>
     <button onclick="loadChart('ytmusic')">YouTube Music</button>
     <button onclick="loadChart('spotify')">Spotify</button>
     <button onclick="loadChart('kkbox')">KKBOX</button>
     <button onclick="loadChart('apple')">Apple Music</button>
-    <div id="charts-content" style="margin-top:10px;"></div>
+    <button onclick="loadChart('cashbox')">錢櫃</button>
+    <button onclick="loadChart('holiday')">好樂迪</button>
+    <button onclick="loadChart('partyworld')">星聚點</button>
   </div>
 
+  <!-- 收藏 -->
   <div id="tab-favorites" class="tab">
     <h3>收藏清單</h3>
+    <button class="btnSm" onclick="clearFavorites()">🗑 清除全部收藏</button>
     <div id="favoritesList" class="list"></div>
   </div>
 
+  <!-- 歷史 -->
   <div id="tab-history" class="tab">
     <h3>歷史紀錄</h3>
+    <button class="btnSm" onclick="clearHistory()">🗑 清除全部歷史</button>
     <div id="historyList" class="list"></div>
   </div>
 
+  <!-- 播放佇列（只讀） -->
+  <div id="tab-queue" class="tab">
+    <h3>播放佇列</h3>
+    <div id="queue" class="list"></div>
+  </div>
+
+  <!-- 音效 -->
   <div id="tab-sfx" class="tab">
     <h3>音效按鈕</h3>
     <button class="btnSm" onclick="send({type:'sfx',payload:'clap'})">👏 掌聲</button>
@@ -95,6 +114,7 @@
       document.getElementById("tab-"+tab).style.display="block";
       if(tab==="favorites") renderFavorites();
       if(tab==="history") renderHistory();
+      if(tab==="queue") renderQueue();
     }
 
     function connectWithRetry(attempt=1){
@@ -131,6 +151,8 @@
         queue=msg.payload.queue||[];
         history=msg.payload.history||[];
         needPIN=msg.payload.needPIN;
+        document.getElementById("nowPlaying").innerText = msg.payload.current ? msg.payload.current.title : "暫無";
+        document.getElementById("nextSong").innerText = (queue.length>0) ? queue[0].title : "暫無";
         renderQueue();
       }
     }
@@ -165,11 +187,7 @@
     function renderQueue(){
       const el=document.getElementById("queue"); el.innerHTML="";
       queue.forEach((q,i)=>{
-        el.innerHTML+=`<div class="listItem"><div>${q.title}</div>
-        <div>
-          <button class="btnSm" onclick='send({type:"next",pin:getPIN()})'>立即播放</button>
-          <button class="btnSm" onclick='send({type:"removeAt",pin:getPIN(),payload:${i}})'>刪除</button>
-        </div></div>`;
+        el.innerHTML+=`<div class="listItem"><div>${q.title}</div></div>`;
       });
     }
 
@@ -186,6 +204,10 @@
         <button class="btnSm" onclick='send({type:"enqueue",payload:${JSON.stringify(f)}})'>播放</button></div>`;
       });
     }
+    function clearFavorites(){
+      favorites=[]; localStorage.removeItem("favorites");
+      renderFavorites();
+    }
 
     function renderHistory(){
       const el=document.getElementById("historyList"); el.innerHTML="";
@@ -194,16 +216,23 @@
         <button class="btnSm" onclick='send({type:"enqueue",payload:${JSON.stringify(h)}})'>再唱一次</button></div>`;
       });
     }
+    function clearHistory(){
+      history=[]; renderHistory();
+      send({type:"clearHistory", pin:getPIN()});
+    }
 
     function loadChart(source){
       let url="";
       switch(source){
         case "ytmusic": url="https://charts.youtube.com/charts/TrendingSongs/tw"; break;
-        case "spotify": url="https://charts.spotify.com/charts/overview/global"; break;
+        case "spotify": url="https://spotifycharts.com/regional"; break;
         case "kkbox": url="https://kma.kkbox.com/charts/weekly/newrelease?lang=tc"; break;
         case "apple": url="https://music.apple.com/tw/browse/top-charts"; break;
+        case "cashbox": url="https://www.cashboxparty.com.tw/Ranking"; break;
+        case "holiday": url="https://www.holiday.com.tw/Rank"; break;
+        case "partyworld": url="https://www.partyworldktv.com.tw/Rank"; break;
       }
-      document.getElementById("charts-content").innerHTML=`<iframe src="${url}" width="100%" height="600px"></iframe>`;
+      window.open(url, "_blank");
     }
 
     connectWithRetry();
