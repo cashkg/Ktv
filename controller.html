@@ -81,7 +81,7 @@
     }
 
     function connectHost(){
-      const peer=new Peer();
+      const peer=new Peer(null, { host:"peerjs.com", port:443, path:"/" });
       conn=peer.connect(hostId);
       conn.on("open",()=> document.getElementById("status").innerText="✅ 已連線 Host("+hostId+")");
       conn.on("data",(msg)=>{
