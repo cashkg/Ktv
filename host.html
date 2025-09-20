@@ -16,8 +16,8 @@
 <body>
   <header>
     <h1>KTV 主機端 (Host)</h1>
-    <div><b>Host Peer ID：</b> <span id="peer-id">初始化中…</span></div>
-    <small>在 Controller 輸入此 ID 即可連線</small>
+    <div><b>Host Peer ID：</b> <span id="peer-id">ktv-host</span></div>
+    <small>Controller 會自動連線到這個 ID</small>
   </header>
 
   <div class="card">
@@ -45,26 +45,18 @@
     let current = null;
     let peer, conn;
 
-    // 初始化 YouTube Player
     function onYouTubeIframeAPIReady() {
       player = new YT.Player("player", {
         height: "360",
         width: "640",
         playerVars: { rel: 0, modestbranding: 1, controls: 1 },
-        events: {
-          onStateChange: (e) => {
-            if (e.data === YT.PlayerState.ENDED) playNext();
-          }
-        }
+        events: { onStateChange: (e) => { if (e.data === YT.PlayerState.ENDED) playNext(); } }
       });
     }
 
-    // PeerJS 初始化
-    peer = new Peer();
-    peer.on("open", (id) => {
-      document.getElementById("peer-id").innerText = id;
-    });
-
+    // 固定 ID = ktv-host
+    peer = new Peer("ktv-host");
+    peer.on("open", () => console.log("Host ready, ID = ktv-host"));
     peer.on("connection", (c) => {
       conn = c;
       conn.on("data", handleMessage);
@@ -73,39 +65,16 @@
 
     function handleMessage(msg) {
       switch (msg.type) {
-        case "enqueue":
-          enqueue(msg.payload);
-          break;
-        case "insertNext":
-          insertNext(msg.payload);
-          break;
-        case "removeAt":
-          removeAt(msg.payload);
-          break;
-        case "next":
-          playNext();
-          break;
+        case "enqueue": enqueue(msg.payload); break;
+        case "insertNext": insertNext(msg.payload); break;
+        case "removeAt": removeAt(msg.payload); break;
+        case "next": playNext(); break;
       }
     }
 
-    function enqueue(item) {
-      queue.push(item);
-      if (!current) playNext();
-      renderQueue();
-      syncToController();
-    }
-
-    function insertNext(item) {
-      queue.unshift(item);
-      renderQueue();
-      syncToController();
-    }
-
-    function removeAt(idx) {
-      queue.splice(idx, 1);
-      renderQueue();
-      syncToController();
-    }
+    function enqueue(item) { queue.push(item); if (!current) playNext(); renderQueue(); syncToController(); }
+    function insertNext(item) { queue.unshift(item); renderQueue(); syncToController(); }
+    function removeAt(idx) { queue.splice(idx, 1); renderQueue(); syncToController(); }
 
     function playNext() {
       if (queue.length === 0) {
@@ -117,10 +86,8 @@
       }
       current = queue.shift();
       document.getElementById("nowPlaying").innerText = current.title;
-      try { player.loadVideoById(current.videoId); }
-      catch { player.cueVideoById(current.videoId); }
-      renderQueue();
-      syncToController();
+      try { player.loadVideoById(current.videoId); } catch { player.cueVideoById(current.videoId); }
+      renderQueue(); syncToController();
     }
 
     function playVideo() { player && player.playVideo(); }
@@ -140,9 +107,7 @@
     }
 
     function syncToController() {
-      if (conn && conn.open) {
-        conn.send({ type: "sync", payload: { queue, current } });
-      }
+      if (conn && conn.open) conn.send({ type: "sync", payload: { queue, current } });
     }
   </script>
 </body>
