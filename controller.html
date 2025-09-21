@@ -13,6 +13,9 @@
     .listItem { display:flex; justify-content:flex-start; align-items:center; gap:6px; padding:8px; border:1px solid #223; border-radius:8px; }
     .btnSm { padding:4px 8px; font-size:12px; border-radius:6px; border:1px solid #475569; background:#1f2937; color:#e8edf3; cursor:pointer; }
     #toast { position:fixed; top:10px; right:10px; background:#1f2937; color:#fff; padding:8px 12px; border-radius:6px; opacity:0; transition:opacity 0.5s; }
+    .status-ok { color: #22c55e; }
+    .status-warn { color: #facc15; }
+    .status-err { color: #ef4444; }
     .light { background:#fff; color:#000; }
     .pink { background:#ffe4f1; color:#c2185b; }
     .festival { background:#800; color:#ffd700; }
@@ -21,7 +24,7 @@
 <body>
   <header>
     <h1>KTV 點歌控制器</h1>
-    <div id="status">🔄 嘗試連線 Host 中...</div>
+    <div id="status" class="status-warn">🔄 嘗試連線 Host 中...</div>
     暱稱：<input id="nickname" style="width:100px;"/>
     <div>PIN 碼：<input id="pinBox" placeholder="輸入 PIN"/></div>
     <div>
@@ -34,7 +37,7 @@
     </div>
   </header>
 
-  <!-- 搜尋 / 佇列 -->
+  <!-- 搜尋 -->
   <div id="tab-search" class="tab" style="display:block;">
     <div class="card">
       <form id="searchForm">
@@ -45,18 +48,6 @@
     <div class="card"><div>搜尋結果</div><div id="searchResults" class="list"></div></div>
     <div class="card"><div>播放佇列</div><div id="queue" class="list"></div></div>
     <div class="card"><div>現在播放</div><div id="nowPlaying"></div><div id="nextSong"></div></div>
-  </div>
-
-  <!-- 外部排行榜 -->
-  <div id="tab-charts" class="tab">
-    <h3>熱門排行榜</h3>
-    <button onclick="openChart('ytmusic')">YouTube Music</button>
-    <button onclick="openChart('spotify')">Spotify</button>
-    <button onclick="openChart('kkbox')">KKBOX</button>
-    <button onclick="openChart('apple')">Apple Music</button>
-    <button onclick="openChart('cashbox')">錢櫃</button>
-    <button onclick="openChart('holiday')">好樂迪</button>
-    <button onclick="openChart('star')">星聚點</button>
   </div>
 
   <!-- 收藏 -->
@@ -96,13 +87,17 @@
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script>
     const API_KEY="AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE";
-    let conn, queue=[], history=[], favorites=[], needPIN=false;
-    let ranking={}, wall=[], defaultNickname;
-    const mahjong=["東風","南風","西風","北風","紅中","發財","白板"];
-
+    let conn, defaultNickname, lastPong=Date.now();
+    let queue=[], history=[], favorites=[], ranking={}, wall=[];
     const urlParams=new URLSearchParams(window.location.search);
     const hostId=urlParams.get("host")||"ktv-host";
 
+    const peerOptions={
+      host:"0.peerjs.com", port:443, path:"/", secure:true,
+      config:{ iceServers:[{urls:"stun:stun.l.google.com:19302"}] }
+    };
+
+    // 分頁切換
     function switchTab(tab){
       document.querySelectorAll(".tab").forEach(el=>el.style.display="none");
       document.getElementById("tab-"+tab).style.display="block";
@@ -112,6 +107,7 @@
       if(tab==="wall") renderWall();
     }
 
+    // Toast
     function showToast(msg){
       const el=document.getElementById("toast");
       el.innerText=msg;
@@ -119,39 +115,72 @@
       setTimeout(()=>el.style.opacity=0,2000);
     }
 
-    function connectHost(){
-      const peer=new Peer(null, { host:"0.peerjs.com", port:443, path:"/", secure:true, config:{ iceServers:[{urls:"stun:stun.l.google.com:19302"}]} });
-      conn=peer.connect(hostId);
-      conn.on("open",()=>{
-        document.getElementById("status").innerText="✅ 已連線 Host("+hostId+")";
-        send({type:"register",name:getNickname()});
+    // 嘗試連線 (重試)
+    function connectWithRetry(attempt=1){
+      const peer=new Peer(null, peerOptions);
+      peer.on("open", id=>{
+        document.getElementById("status").innerText=`🔌 Peer 就緒 (${id})`;
+        conn=peer.connect(hostId);
+        conn.on("open",()=>{
+          document.getElementById("status").innerText=`✅ 已連線 Host(${hostId})`;
+          document.getElementById("status").className="status-ok";
+          send({type:"register",name:getNickname()});
+        });
+        conn.on("data",msg=>handleMsg(msg));
+        conn.on("close",()=>retry("closed",attempt));
+        conn.on("error",err=>retry(err,attempt));
       });
-      conn.on("data",(msg)=>{
-        if(msg.type==="sync"){
-          queue=msg.payload.queue||[];
-          history=msg.payload.history||[];
-          ranking=msg.payload.ranking||{};
-          wall=msg.payload.wall||[];
-          renderQueue(); renderHistory(); renderRanking(); renderWall();
-          document.getElementById("nowPlaying").innerText= msg.payload.current? (msg.payload.current.by? msg.payload.current.by+" 點播 "+msg.payload.current.title: msg.payload.current.title):"暫無";
-          document.getElementById("nextSong").innerText= queue[0]? "下一首："+(queue[0].by? queue[0].by+" 點播 "+queue[0].title: queue[0].title):"";
-          applyTheme(msg.payload.theme);
+      peer.on("error",err=>retry(err,attempt));
+
+      function retry(reason,attempt){
+        if(attempt>=8){
+          document.getElementById("status").innerText="❌ 無法連線 Host";
+          document.getElementById("status").className="status-err";
+          return;
         }
-      });
-    }
-    connectHost();
-
-    function getPIN(){ return document.getElementById("pinBox").value; }
-    function send(msg){ if(conn&&conn.open) conn.send(msg); else alert("未連線 Host"); }
-
-    document.addEventListener("DOMContentLoaded",()=>{
-      const shuffled=[...mahjong].sort(()=>Math.random()-0.5);
-      defaultNickname=shuffled[0];
-      if(!localStorage.getItem("nickname")){
-        localStorage.setItem("nickname",defaultNickname);
+        const delay=Math.pow(2,attempt)*500;
+        document.getElementById("status").innerText=`⚠️ 連線失敗(${reason})，${delay/1000}s 後重試 (${attempt})`;
+        document.getElementById("status").className="status-warn";
+        setTimeout(()=>connectWithRetry(attempt+1),delay);
       }
+    }
+
+    // 傳送訊息
+    function send(msg){ if(conn && conn.open) conn.send(msg); }
+
+    // 收到 Host 訊息
+    function handleMsg(msg){
+      if(msg.type==="sync"){
+        if(msg.payload.pong){
+          lastPong=Date.now();
+          document.getElementById("status").innerText="🟢 Host 連線正常";
+          document.getElementById("status").className="status-ok";
+        }
+        queue=msg.payload.queue||[];
+        history=msg.payload.history||[];
+        ranking=msg.payload.ranking||{};
+        wall=msg.payload.wall||[];
+        renderQueue(); renderHistory(); renderRanking(); renderWall();
+        document.getElementById("nowPlaying").innerText= msg.payload.current? (msg.payload.current.by? msg.payload.current.by+" 點播 "+msg.payload.current.title: msg.payload.current.title):"暫無";
+        document.getElementById("nextSong").innerText= queue[0]? "下一首："+(queue[0].by? queue[0].by+" 點播 "+queue[0].title: queue[0].title):"";
+        applyTheme(msg.payload.theme);
+      }
+    }
+
+    // 心跳檢查
+    setInterval(()=>{
+      if(Date.now()-lastPong>5000){
+        document.getElementById("status").innerText="⚠️ Host 無回應";
+        document.getElementById("status").className="status-warn";
+      }
+    },2000);
+
+    // 暱稱防空白
+    document.addEventListener("DOMContentLoaded",()=>{
+      const mahjong=["東風","南風","西風","北風","紅中","發財","白板"];
+      defaultNickname=mahjong[Math.floor(Math.random()*mahjong.length)];
+      if(!localStorage.getItem("nickname")) localStorage.setItem("nickname",defaultNickname);
       document.getElementById("nickname").value=localStorage.getItem("nickname");
-      document.getElementById("nickname").addEventListener("input",getNickname);
     });
 
     function getNickname(){
@@ -162,6 +191,7 @@
       return v;
     }
 
+    // 搜尋歌曲
     document.getElementById("searchForm").onsubmit=async(e)=>{
       e.preventDefault();
       let q=document.getElementById("searchQuery").value; if(!q) return;
@@ -179,10 +209,18 @@
       });
     };
 
+    // 佇列 / 歷史 / 收藏 / 排行榜 / 訊息牆
     function renderQueue(){
       const el=document.getElementById("queue"); el.innerHTML="";
       queue.forEach((q)=>{ el.innerHTML+=`<div class="listItem">${q.by? q.by+" 點播 ":""}${q.title}</div>`; });
     }
+    function renderHistory(){
+      const el=document.getElementById("historyList"); el.innerHTML="";
+      history.slice().reverse().forEach(h=>{
+        el.innerHTML+=`<div class="listItem"><button class="btnSm" onclick='send({type:"enqueue",payload:${JSON.stringify(h)}})'>再唱</button>${h.by? h.by+" 點播 ":""}${h.title}</div>`;
+      });
+    }
+    function clearHistory(){ history=[]; renderHistory(); }
 
     function addFavorite(id,title){
       favorites.push({videoId:id,title});
@@ -198,14 +236,6 @@
     }
     function clearFavorites(){ favorites=[]; localStorage.removeItem("favorites"); renderFavorites(); }
 
-    function renderHistory(){
-      const el=document.getElementById("historyList"); el.innerHTML="";
-      history.slice().reverse().forEach(h=>{
-        el.innerHTML+=`<div class="listItem"><button class="btnSm" onclick='send({type:"enqueue",payload:${JSON.stringify(h)}})'>再唱</button>${h.by? h.by+" 點播 ":""}${h.title}</div>`;
-      });
-    }
-    function clearHistory(){ history=[]; renderHistory(); }
-
     function renderRanking(){
       const el=document.getElementById("rankingList"); el.innerHTML="";
       Object.entries(ranking).sort((a,b)=>b[1]-a[1]).forEach(([name,count],i)=>{
@@ -219,19 +249,7 @@
     }
     function sendFeedback(emoji){ send({type:"feedback",by:getNickname(),emoji}); }
 
-    function openChart(source){
-      let url="";
-      switch(source){
-        case "ytmusic": url="https://charts.youtube.com/charts/TrendingSongs/tw"; break;
-        case "spotify": url="https://charts.spotify.com/charts/overview/global"; break;
-        case "kkbox": url="https://kma.kkbox.com/charts/weekly/newrelease?lang=tc"; break;
-        case "apple": url="https://music.apple.com/tw/browse/top-charts"; break;
-        case "cashbox": url="https://www.cashboxparty.com.tw"; break;
-        case "holiday": url="https://www.holiday.com.tw"; break;
-        case "star": url="https://www.moneydj.com/Ktv/StarLight"; break;
-      }
-      if(url) window.open(url,"_blank");
-    }
+    function getPIN(){ return document.getElementById("pinBox").value; }
 
     function applyTheme(theme){
       document.body.className="";
@@ -239,6 +257,8 @@
       if(theme==="pink") document.body.classList.add("pink");
       if(theme==="festival") document.body.classList.add("festival");
     }
+
+    connectWithRetry();
   </script>
 </body>
 </html>
