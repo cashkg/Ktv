@@ -1,16 +1,27 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>KTV 主機端 (Host)</title>
   <style>
     body { font-family: Arial, sans-serif; background:#0b0f1a; color:#e8edf3; margin:0; text-align:center; }
     header { padding:12px; border-bottom:1px solid #223; }
     h1 { font-size:20px; margin:0; }
-    .card { padding:12px; border:1px solid #223; border-radius:12px; background:#0f1524; margin:12px auto; width:90%; max-width:700px; }
+    .toolbar { margin-top:8px; display:flex; justify-content:center; gap:8px; flex-wrap:wrap; }
+    .btnSm { padding:6px 10px; border-radius:6px; border:1px solid #475569; background:#1f2937; color:#e8edf3; cursor:pointer; font-size:12px; }
+    .btnSm + .btnSm { margin-left:4px; }
+    .card { padding:12px; border:1px solid #223; border-radius:12px; background:#0f1524; margin:12px auto; width:90%; max-width:800px; text-align:left; }
     .list { display:grid; gap:8px; max-height:45vh; overflow-y:auto; }
     .listItem { display:flex; justify-content:space-between; align-items:center; padding:8px; border:1px solid #223; border-radius:8px; }
-    .btnSm { padding:6px 10px; border-radius:6px; border:1px solid #475569; background:#1f2937; color:#e8edf3; cursor:pointer; font-size:12px; margin-right:4px; }
+    .tabs { display:flex; gap:8px; margin:8px 0 0; }
+    .tab { display:none; }
+    .tab.active { display:block; }
+    .leftActions { display:flex; gap:6px; align-items:center; }
+    .titleRight { text-align:right; flex:1; padding-left:10px; }
+    .np { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    .progressRow { display:flex; align-items:center; gap:8px; margin-top:8px; }
+    progress { width:100%; height:10px; }
+    .meta { font-size:12px; color:#9aa4b2; }
   </style>
 </head>
 <body>
@@ -18,34 +29,60 @@
     <h1>KTV 主機端 (Host)</h1>
     <div><b>Host Peer ID：</b> <span id="peer-id">初始化中...</span></div>
     <div>PIN 碼：<input id="pinInput" value="1234" size="6"/></div>
-    <div id="status"></div>
+    <div id="status" class="meta"></div>
+
+    <div class="toolbar">
+      <button class="btnSm" onclick="switchTab('queueTab')">播放佇列</button>
+      <button class="btnSm" onclick="switchTab('historyTab')">歷史紀錄</button>
+    </div>
   </header>
 
   <div class="card">
-    <h3>現在播放</h3>
-    <div id="nowPlaying">暫無</div>
-    <div id="player" style="margin-top:10px;"></div>
-    <div style="margin-top:10px;">
-      <button class="btnSm" onclick="playVideo()">播放</button>
-      <button class="btnSm" onclick="pauseVideo()">暫停</button>
-      <button class="btnSm" onclick="stopVideo()">停止</button>
-      <button class="btnSm" onclick="playNext()">下一首</button>
+    <div class="np">
+      <div>
+        <h3 style="margin:0 0 6px 0;">現在播放</h3>
+        <div id="nowPlaying">暫無</div>
+        <div class="meta" id="nextPreview" style="margin-top:4px;">⏭ 下一首：—</div>
+      </div>
+      <div>
+        <div id="player" style="width:640px; max-width:90vw; height:360px;"></div>
+        <div class="progressRow">
+          <progress id="prog" value="0" max="1"></progress>
+          <span id="timeText" class="meta">00:00 / 00:00</span>
+        </div>
+        <div style="margin-top:8px; text-align:right;">
+          <button class="btnSm" onclick="playVideo()">播放</button>
+          <button class="btnSm" onclick="pauseVideo()">暫停</button>
+          <button class="btnSm" onclick="stopVideo()">停止</button>
+          <button class="btnSm" onclick="playNext()">下一首</button>
+        </div>
+      </div>
     </div>
   </div>
 
   <div class="card">
-    <h3>播放佇列</h3>
-    <div id="queue" class="list"></div>
+    <div class="tabs">
+      <h3 style="margin:0;">清單</h3>
+    </div>
+    <div id="queueTab" class="tab active">
+      <h4>播放佇列</h4>
+      <div id="queue" class="list"></div>
+    </div>
+    <div id="historyTab" class="tab">
+      <h4>歷史紀錄</h4>
+      <div id="history" class="list"></div>
+    </div>
   </div>
 
   <script src="https://www.youtube.com/iframe_api"></script>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script>
-    let player, sfxPlayer, peer;
+    // --- State ---
+    let player, peer;
     let conns = [];
     let queue = [], current = null, history = [];
     let hostPIN="1234";
-    const bgmList=["dQw4w9WgXcQ","oHg5SJYRHA0"];
+    const bgmList = ["dQw4w9WgXcQ","oHg5SJYRHA0"]; // 可自行替換
     let bgmMode=false;
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -53,6 +90,7 @@
     document.getElementById("peer-id").innerText = hostId;
     document.getElementById("pinInput").addEventListener("input", e=> hostPIN=e.target.value);
 
+    // --- Peer options ---
     const peerOptions = {
       host: "0.peerjs.com",
       port: 443,
@@ -61,14 +99,25 @@
       config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] }
     };
 
+    // --- Tabs ---
+    function switchTab(id){
+      document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+      document.getElementById(id).classList.add("active");
+    }
+
+    // --- YouTube API ready ---
     function onYouTubeIframeAPIReady() {
       player = new YT.Player("player", {
         height:"360", width:"640",
-        events:{ onStateChange:(e)=>{ if(e.data===YT.PlayerState.ENDED) playNext(); } }
+        events:{
+          onStateChange:(e)=>{
+            if(e.data===YT.PlayerState.ENDED) playNext();
+          }
+        }
       });
-      sfxPlayer = new YT.Player(document.createElement("div"), { height:"0", width:"0" });
     }
 
+    // --- Peer setup ---
     peer = new Peer(hostId, peerOptions);
     peer.on("open", ()=> document.getElementById("status").innerText="✅ Host 啟動成功");
     peer.on("connection", (c)=>{
@@ -76,7 +125,9 @@
       c.on("data", handleMsg);
       sync();
     });
+    peer.on("error", err=> document.getElementById("status").innerText = "Peer 錯誤: " + err);
 
+    // --- Messaging ---
     function handleMsg(msg){
       switch(msg.type){
         case "enqueue": enqueue(msg.payload); break;
@@ -87,104 +138,206 @@
         case "moveUp": if(msg.pin===hostPIN) moveUp(msg.payload); break;
         case "moveDown": if(msg.pin===hostPIN) moveDown(msg.payload); break;
         case "seek": if(player&&msg.pin===hostPIN) player.seekTo(msg.payload, true); break;
-        case "sfx": playSFX(msg.payload); break;
+        case "clearHistory": if(msg.pin===hostPIN) { history=[]; renderHistory(); sync(); } break;
       }
+    }
+
+    // --- Queue ops ---
+    function isDuplicateInAll(item){
+      return (current && current.videoId===item.videoId)
+        || queue.some(q=>q.videoId===item.videoId)
+        || history.some(h=>h.videoId===item.videoId);
     }
 
     function enqueue(item){
       stopBGM();
-      let isDuplicate = 
-        (current && current.videoId===item.videoId) || 
-        queue.some(q=>q.videoId===item.videoId) || 
-        history.some(h=>h.videoId===item.videoId);
-
-      if(isDuplicate){
-        conns.forEach(c=>{
-          if(c.open) c.send({type:"confirmEnqueue", payload:item});
-        });
+      if(isDuplicateInAll(item)){
+        // 要求 Controller 彈窗確認
+        broadcast({type:"confirmEnqueue", payload:item});
       } else {
         queue.push(item);
         if(!current) playNext();
-        render(); sync();
+        renderAll(); sync();
       }
     }
 
     function forceEnqueue(item){
+      stopBGM();
       queue.push(item);
       if(!current) playNext();
-      render(); sync();
+      renderAll(); sync();
     }
 
-    function insertNext(item){ stopBGM(); queue.unshift(item); render(); sync(); }
-    function removeAt(i){ queue.splice(i,1); render(); sync(); }
+    function insertNext(item){
+      stopBGM();
+      // 插播去重：若已在 queue 內，先移除再插到最前
+      const idx = queue.findIndex(q=>q.videoId===item.videoId);
+      if(idx>=0) queue.splice(idx,1);
+      queue.unshift(item);
+      renderAll(); sync();
+    }
+
+    function removeAt(i){
+      if(i>=0 && i<queue.length){
+        queue.splice(i,1);
+        renderAll(); sync();
+      }
+    }
 
     function moveUp(i){
       if(i>0){
         [queue[i-1], queue[i]] = [queue[i], queue[i-1]];
-        render(); sync();
+        renderAll(); sync();
       }
     }
     function moveDown(i){
       if(i<queue.length-1){
         [queue[i+1], queue[i]] = [queue[i], queue[i+1]];
-        render(); sync();
+        renderAll(); sync();
       }
     }
 
+    // --- Playback ---
     function playNext(){
       if(current){ history.push(current); }
       if(queue.length===0){
-        current=null; document.getElementById("nowPlaying").innerText="暫無";
-        player.stopVideo(); startBGM(); sync(); return;
+        current=null;
+        renderNowPlaying();
+        startBGM();
+        sync();
+        return;
       }
       stopBGM();
       current=queue.shift();
-      document.getElementById("nowPlaying").innerText=current.title + (current.by ? " - by " + current.by : "");
-      player.loadVideoById(current.videoId);
-      render(); sync();
+      if(player) player.loadVideoById(current.videoId);
+      renderAll();
+      sync();
     }
 
-    function playVideo(){ player.playVideo(); }
-    function pauseVideo(){ player.pauseVideo(); }
-    function stopVideo(){ player.stopVideo(); }
+    function playVideo(){ if(player) player.playVideo(); }
+    function pauseVideo(){ if(player) player.pauseVideo(); }
+    function stopVideo(){ if(player) player.stopVideo(); }
 
-    function render(){
-      const el=document.getElementById("queue"); el.innerHTML="";
-      queue.forEach((q,i)=>{
-        el.innerHTML+=`<div class="listItem">
-          <div>
-            <button class="btnSm" onclick="removeAt(${i})">刪除</button>
-            <button class="btnSm" onclick="insertNext(queue[${i}])">插播</button>
-            <button class="btnSm" onclick="moveUp(${i})">⬆️</button>
-            <button class="btnSm" onclick="moveDown(${i})">⬇️</button>
-          </div>
-          <div>${q.title}${q.by ? " - by " + q.by : ""}</div>
-        </div>`;
-      });
-    }
-
-    function sync(){
-      const payload={queue,current,history, needPIN:true, progress:player?player.getCurrentTime():0, duration:player?player.getDuration():0};
-      conns = conns.filter(c=>c.open);
-      conns.forEach(c=>c.send({type:"sync",payload}));
-    }
-    setInterval(()=> sync(),1000);
-
+    // --- BGM ---
     function startBGM(){
-      if(bgmList.length===0) return;
+      if(bgmMode) return;
+      if(queue.length>0 || current) return;
+      if(!player || bgmList.length===0) return;
       bgmMode=true;
       const bgmId=bgmList[Math.floor(Math.random()*bgmList.length)];
       player.loadVideoById(bgmId);
       document.getElementById("nowPlaying").innerText="🎶 背景音樂";
+      document.getElementById("nextPreview").innerText="⏭ 下一首：—";
+      document.title = "🎶 背景音樂";
     }
-    function stopBGM(){ if(bgmMode){ player.stopVideo(); bgmMode=false; } }
+    function stopBGM(){
+      if(bgmMode){
+        try{ if(player) player.stopVideo(); }catch(e){}
+        bgmMode=false;
+      }
+    }
 
-    function playSFX(type){
-      let vid="";
-      if(type==="clap") vid="5dfqf6VZ2dA";
-      if(type==="cheer") vid="9Q7Vr3yQYWQ";
-      if(type==="boo") vid="RovF3pF3lHg";
-      if(vid) sfxPlayer.loadVideoById(vid);
+    // --- Render ---
+    function renderNowPlaying(){
+      const npEl = document.getElementById("nowPlaying");
+      if(current){
+        const label = current.title + (current.by ? " - by " + current.by : "");
+        npEl.innerText = label;
+        document.title = "🎶 " + label;
+      }else{
+        npEl.innerText = "暫無";
+        document.title = "KTV 主機端";
+      }
+      // 下一首預覽
+      const nextEl = document.getElementById("nextPreview");
+      if(queue.length>0){
+        const nxt = queue[0];
+        nextEl.innerText = "⏭ 下一首：" + nxt.title + (nxt.by ? " - by " + nxt.by : "");
+      }else{
+        nextEl.innerText = "⏭ 下一首：—";
+      }
+    }
+
+    function renderQueue(){
+      const el=document.getElementById("queue"); el.innerHTML="";
+      queue.forEach((q,i)=>{
+        el.innerHTML+=`
+          <div class="listItem">
+            <div class="leftActions">
+              <button class="btnSm" onclick="removeAt(${i})">刪除</button>
+              <button class="btnSm" onclick="insertNext(queue[${i}])">插播</button>
+              <button class="btnSm" onclick="moveUp(${i})">⬆️</button>
+              <button class="btnSm" onclick="moveDown(${i})">⬇️</button>
+            </div>
+            <div class="titleRight">${escapeHTML(q.title)}${q.by ? " - by " + escapeHTML(q.by) : ""}</div>
+          </div>`;
+      });
+    }
+
+    function renderHistory(){
+      const el=document.getElementById("history"); el.innerHTML="";
+      history.slice().reverse().forEach(h=>{
+        el.innerHTML+=`
+          <div class="listItem">
+            <div class="leftActions" style="visibility:hidden;">
+              <button class="btnSm">刪除</button>
+            </div>
+            <div class="titleRight">${escapeHTML(h.title)}${h.by ? " - by " + escapeHTML(h.by) : ""}</div>
+          </div>`;
+      });
+    }
+
+    function renderAll(){
+      renderNowPlaying();
+      renderQueue();
+      renderHistory();
+    }
+
+    // --- Progress & sync ---
+    function formatTime(s){
+      if(!isFinite(s) || s<0) s=0;
+      const m=Math.floor(s/60); const ss=Math.floor(s%60);
+      return String(m).padStart(2,"0")+":"+String(ss).padStart(2,"0");
+    }
+
+    function updateProgressUI(){
+      const progEl = document.getElementById("prog");
+      const timeEl = document.getElementById("timeText");
+      if(!player){
+        progEl.value=0; progEl.max=1; timeEl.innerText="00:00 / 00:00"; return;
+      }
+      const cur = player.getCurrentTime ? player.getCurrentTime() : 0;
+      const dur = player.getDuration ? player.getDuration() : 0;
+      progEl.max = dur>0 ? dur : 1;
+      progEl.value = cur;
+      timeEl.innerText = `${formatTime(cur)} / ${formatTime(dur)}`;
+    }
+    setInterval(()=>{
+      updateProgressUI();
+      // 定期把進度同步給 Controllers
+      sync();
+    }, 1000);
+
+    function broadcast(msg){
+      conns = conns.filter(c=>c.open);
+      conns.forEach(c=> c.send(msg));
+    }
+
+    function sync(){
+      const payload={
+        queue,current,history,
+        needPIN:true,
+        progress: player && player.getCurrentTime ? player.getCurrentTime() : 0,
+        duration: player && player.getDuration ? player.getDuration() : 0
+      };
+      broadcast({type:"sync", payload});
+    }
+
+    // --- Utils ---
+    function escapeHTML(str){
+      return String(str).replace(/[&<>"']/g, s=>(
+        { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[s]
+      ));
     }
   </script>
 </body>
