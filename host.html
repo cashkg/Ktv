@@ -3,17 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>KTV 主機端 (Host)</title>
-  <style>
-    body { font-family: Arial, sans-serif; background:#0b0f1a; color:#e8edf3; margin:0; text-align:center; }
-    header { padding:12px; border-bottom:1px solid #223; }
-    h1 { font-size:20px; margin:0; }
-    .card { padding:12px; border:1px solid #223; border-radius:12px; background:#0f1524; margin:12px auto; width:90%; max-width:700px; }
-    .list { display:grid; gap:8px; max-height:45vh; overflow-y:auto; text-align:left; }
-    .listItem { display:flex; justify-content:flex-start; align-items:center; gap:6px; padding:8px; border:1px solid #223; border-radius:8px; }
-    .btnSm { padding:6px 10px; border-radius:6px; border:1px solid #475569; background:#1f2937; color:#e8edf3; cursor:pointer; font-size:12px; }
-    nav { margin-top:10px; }
-    nav button { margin:0 4px; }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
@@ -31,7 +21,6 @@
     </div>
     <div id="status"></div>
     <nav>
-      <button onclick="switchTab('now')">現在播放</button>
       <button onclick="switchTab('queue')">播放佇列</button>
       <button onclick="switchTab('history')">歷史紀錄</button>
       <button onclick="switchTab('users')">使用者</button>
@@ -40,8 +29,8 @@
     </nav>
   </header>
 
-  <!-- 現在播放 -->
-  <div id="tab-now" class="card tab" style="display:block;">
+  <!-- 固定播放區 -->
+  <section id="playerSection" class="card" style="margin-top:12px;">
     <h3>現在播放</h3>
     <div id="nowPlaying">暫無</div>
     <progress id="progressBar" value="0" max="100" style="width:100%; margin-top:8px;"></progress>
@@ -53,201 +42,21 @@
       <button class="btnSm" onclick="stopVideo()">停止</button>
       <button class="btnSm" onclick="playNext()">下一首</button>
     </div>
-  </div>
+    <div id="latestMsg" class="latest"></div>
+  </section>
 
-  <!-- 播放佇列 -->
-  <div id="tab-queue" class="card tab">
+  <!-- 子頁面容器 -->
+  <div id="tab-queue" class="card tab" style="display:block;">
     <h3>播放佇列</h3>
     <div id="queue" class="list"></div>
   </div>
-
-  <!-- 歷史紀錄 -->
-  <div id="tab-history" class="card tab">
-    <h3>歷史紀錄</h3>
-    <div id="historyList" class="list"></div>
-  </div>
-
-  <!-- 使用者清單 -->
-  <div id="tab-users" class="card tab">
-    <h3>使用者清單</h3>
-    <div id="userCount">目前連線人數：0</div>
-    <div id="userList" class="list"></div>
-  </div>
-
-  <!-- 排行榜 -->
-  <div id="tab-ranking" class="card tab">
-    <h3>點歌排行榜</h3>
-    <div id="rankingList" class="list"></div>
-  </div>
-
-  <!-- 訊息牆 -->
-  <div id="tab-wall" class="card tab">
-    <h3>訊息牆</h3>
-    <div id="wallList" class="list"></div>
-  </div>
+  <div id="tab-history" class="card tab"><h3>歷史紀錄</h3><div id="historyList" class="list"></div></div>
+  <div id="tab-users" class="card tab"><h3>使用者清單</h3><div id="userCount"></div><div id="userList" class="list"></div></div>
+  <div id="tab-ranking" class="card tab"><h3>排行榜</h3><div id="rankingList" class="list"></div></div>
+  <div id="tab-wall" class="card tab"><h3>訊息牆</h3><div id="wallList" class="list"></div></div>
 
   <script src="https://www.youtube.com/iframe_api"></script>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-  <script>
-    let player, peer;
-    let conns = [];
-    let queue = [], current = null, history = [];
-    let hostPIN="1234";
-    let users = []; // {id, name}
-    let ranking = {}; // {name: count}
-    let wall = []; // feedback messages
-
-    const bgmList=["dQw4w9WgXcQ","oHg5SJYRHA0"];
-    let bgmMode=false;
-
-    const hostId = new URLSearchParams(window.location.search).get("host") || "ktv-host";
-    document.getElementById("peer-id").innerText = hostId;
-    document.getElementById("pinInput").addEventListener("input", e=> hostPIN=e.target.value);
-
-    function switchTab(tab){
-      document.querySelectorAll(".tab").forEach(el=>el.style.display="none");
-      document.getElementById("tab-"+tab).style.display="block";
-    }
-
-    function onYouTubeIframeAPIReady() {
-      player = new YT.Player("player", {
-        height:"360", width:"640",
-        events:{ onStateChange:(e)=>{ if(e.data===YT.PlayerState.ENDED) playNext(); } }
-      });
-    }
-
-    peer = new Peer(hostId, { host:"0.peerjs.com", port:443, path:"/", secure:true, config:{ iceServers:[{urls:"stun:stun.l.google.com:19302"}] } });
-    peer.on("open", ()=> document.getElementById("status").innerText="✅ Host 啟動成功");
-    peer.on("connection", (c)=>{
-      conns.push(c);
-      c.on("data", msg=>handleMsg(msg,c));
-      c.on("close", ()=>{ users=users.filter(u=>u.id!==c.peer); renderUsers(); });
-      sync();
-    });
-
-    function handleMsg(msg, c){
-      switch(msg.type){
-        case "enqueue":
-          if(msg.payload && msg.payload.by){
-            ranking[msg.payload.by] = (ranking[msg.payload.by]||0)+1;
-          }
-          enqueue(msg.payload); break;
-        case "insertNext": if(msg.pin===hostPIN) insertNext(msg.payload); break;
-        case "removeAt": if(msg.pin===hostPIN) removeAt(msg.payload); break;
-        case "next": if(msg.pin===hostPIN) playNext(); break;
-        case "seek": if(player&&msg.pin===hostPIN) player.seekTo(msg.payload, true); break;
-        case "register":
-          users.push({id:c.peer, name:msg.name||"匿名"});
-          renderUsers(); break;
-        case "rename":
-          let u=users.find(u=>u.id===c.peer);
-          if(u){ u.name=msg.name||"匿名"; }
-          renderUsers(); break;
-        case "forceEnqueue": enqueue(msg.payload); break;
-        case "feedback":
-          wall.push({by:msg.by, emoji:msg.emoji});
-          if(wall.length>20) wall.shift();
-          renderWall(); break;
-      }
-    }
-
-    function enqueue(item){ stopBGM(); queue.push(item); if(!current) playNext(); render(); sync(); }
-    function insertNext(item){ stopBGM(); queue.unshift(item); render(); sync(); }
-    function removeAt(i){ queue.splice(i,1); render(); sync(); }
-
-    function playNext(){
-      if(current){ history.push(current); renderHistory(); }
-      if(queue.length===0){ current=null; document.getElementById("nowPlaying").innerText="暫無"; player.stopVideo(); startBGM(); sync(); return; }
-      stopBGM();
-      current=queue.shift();
-      document.getElementById("nowPlaying").innerText=current.by? `${current.by} 點播 ${current.title}`: current.title;
-      document.title="🎶 "+current.title+(current.by? " - by "+current.by:"");
-      player.loadVideoById(current.videoId);
-      render(); sync();
-    }
-
-    function playVideo(){ player.playVideo(); }
-    function pauseVideo(){ player.pauseVideo(); }
-    function stopVideo(){ player.stopVideo(); }
-
-    function render(){
-      const el=document.getElementById("queue"); el.innerHTML="";
-      queue.forEach((q,i)=>{
-        el.innerHTML+=`<div class="listItem">
-          <button class="btnSm" onclick="removeAt(${i})">刪除</button>
-          <button class="btnSm" onclick="insertNext(queue[${i}])">插播</button>
-          <button class="btnSm" onclick="if(${i}>0){ [queue[${i}-1],queue[${i}]]=[queue[${i}],queue[${i}-1]]; render(); sync(); }">⬆️</button>
-          <button class="btnSm" onclick="if(${i}<queue.length-1){ [queue[${i}+1],queue[${i}]]=[queue[${i}],queue[${i}+1]]; render(); sync(); }">⬇️</button>
-          ${q.by? q.by+" 點播 ":""}${q.title}
-        </div>`;
-      });
-    }
-
-    function renderHistory(){
-      const el=document.getElementById("historyList"); el.innerHTML="";
-      history.slice().reverse().forEach(h=>{
-        el.innerHTML+=`<div class="listItem">${h.by? h.by+" 點播 ":""}${h.title}</div>`;
-      });
-    }
-
-    function renderUsers(){
-      document.getElementById("userCount").innerText="目前連線人數："+users.length;
-      const el=document.getElementById("userList"); el.innerHTML="";
-      users.forEach(u=>{ el.innerHTML+=`<div>${u.name}</div>`; });
-    }
-
-    function renderRanking(){
-      const sorted = Object.entries(ranking).sort((a,b)=>b[1]-a[1]);
-      const el=document.getElementById("rankingList"); el.innerHTML="";
-      sorted.forEach(([name,count],i)=>{
-        el.innerHTML+=`<div class="listItem">${i+1}. ${name} ${count} 首</div>`;
-      });
-    }
-
-    function renderWall(){
-      const el=document.getElementById("wallList"); el.innerHTML="";
-      wall.forEach(m=>{ el.innerHTML+=`<div class="listItem">${m.by}：${m.emoji}</div>`; });
-    }
-
-    // ✅ sync 加入 pong
-    function sync(){
-      conns = conns.filter(c=>c.open);
-      renderUsers(); renderRanking(); renderWall();
-      const payload={
-        queue,current,history, needPIN:true,
-        progress: player?player.getCurrentTime():0,
-        duration: player?player.getDuration():0,
-        ranking, theme:document.getElementById("themeSelect").value,
-        wall, pong:true
-      };
-      conns.forEach(c=>c.send({type:"sync",payload}));
-    }
-    setInterval(()=> sync(),1000);
-
-    function startBGM(){
-      if(bgmList.length===0) return;
-      bgmMode=true;
-      const bgmId=bgmList[Math.floor(Math.random()*bgmList.length)];
-      player.loadVideoById(bgmId);
-      document.getElementById("nowPlaying").innerText="🎶 背景音樂";
-    }
-    function stopBGM(){ if(bgmMode){ player.stopVideo(); bgmMode=false; } }
-
-    document.getElementById("themeSelect").addEventListener("change", sync);
-
-    setInterval(()=>{
-      if(player && player.getDuration){
-        const cur=player.getCurrentTime(), dur=player.getDuration();
-        document.getElementById("progressBar").value = dur? (cur/dur*100):0;
-        document.getElementById("timeInfo").innerText = formatTime(cur)+" / "+formatTime(dur);
-      }
-    },1000);
-
-    function formatTime(sec){
-      sec=Math.floor(sec);
-      const m=Math.floor(sec/60), s=sec%60;
-      return m+":"+(s<10?"0"+s:s);
-    }
-  </script>
+  <script src="host.js"></script>
 </body>
 </html>
