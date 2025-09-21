@@ -10,7 +10,7 @@
     .card { padding:12px; border:1px solid #223; border-radius:12px; background:#0f1524; margin:12px auto; width:90%; max-width:700px; }
     .list { display:grid; gap:8px; max-height:45vh; overflow-y:auto; }
     .listItem { display:flex; justify-content:space-between; align-items:center; padding:8px; border:1px solid #223; border-radius:8px; }
-    .btnSm { padding:6px 10px; border-radius:6px; border:1px solid #475569; background:#1f2937; color:#e8edf3; cursor:pointer; font-size:12px; margin-left:4px; }
+    .btnSm { padding:6px 10px; border-radius:6px; border:1px solid #475569; background:#1f2937; color:#e8edf3; cursor:pointer; font-size:12px; margin-right:4px; }
   </style>
 </head>
 <body>
@@ -58,12 +58,7 @@
       port: 443,
       path: "/",
       secure: true,
-      config: {
-        iceServers: [
-          { urls: "stun:stun.l.google.com:19302" },
-          { urls: "stun:global.stun.twilio.com:3478" }
-        ]
-      }
+      config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] }
     };
 
     function onYouTubeIframeAPIReady() {
@@ -85,6 +80,7 @@
     function handleMsg(msg){
       switch(msg.type){
         case "enqueue": enqueue(msg.payload); break;
+        case "forceEnqueue": forceEnqueue(msg.payload); break;
         case "insertNext": if(msg.pin===hostPIN) insertNext(msg.payload); break;
         case "removeAt": if(msg.pin===hostPIN) removeAt(msg.payload); break;
         case "next": if(msg.pin===hostPIN) playNext(); break;
@@ -95,7 +91,30 @@
       }
     }
 
-    function enqueue(item){ stopBGM(); queue.push(item); if(!current) playNext(); render(); sync(); }
+    function enqueue(item){
+      stopBGM();
+      let isDuplicate = 
+        (current && current.videoId===item.videoId) || 
+        queue.some(q=>q.videoId===item.videoId) || 
+        history.some(h=>h.videoId===item.videoId);
+
+      if(isDuplicate){
+        conns.forEach(c=>{
+          if(c.open) c.send({type:"confirmEnqueue", payload:item});
+        });
+      } else {
+        queue.push(item);
+        if(!current) playNext();
+        render(); sync();
+      }
+    }
+
+    function forceEnqueue(item){
+      queue.push(item);
+      if(!current) playNext();
+      render(); sync();
+    }
+
     function insertNext(item){ stopBGM(); queue.unshift(item); render(); sync(); }
     function removeAt(i){ queue.splice(i,1); render(); sync(); }
 
@@ -114,10 +133,13 @@
 
     function playNext(){
       if(current){ history.push(current); }
-      if(queue.length===0){ current=null; document.getElementById("nowPlaying").innerText="暫無"; player.stopVideo(); startBGM(); sync(); return; }
+      if(queue.length===0){
+        current=null; document.getElementById("nowPlaying").innerText="暫無";
+        player.stopVideo(); startBGM(); sync(); return;
+      }
       stopBGM();
       current=queue.shift();
-      document.getElementById("nowPlaying").innerText=current.title;
+      document.getElementById("nowPlaying").innerText=current.title + (current.by ? " - by " + current.by : "");
       player.loadVideoById(current.videoId);
       render(); sync();
     }
@@ -129,13 +151,15 @@
     function render(){
       const el=document.getElementById("queue"); el.innerHTML="";
       queue.forEach((q,i)=>{
-        el.innerHTML+=`<div class="listItem"><div>${q.title}</div>
+        el.innerHTML+=`<div class="listItem">
           <div>
             <button class="btnSm" onclick="removeAt(${i})">刪除</button>
             <button class="btnSm" onclick="insertNext(queue[${i}])">插播</button>
             <button class="btnSm" onclick="moveUp(${i})">⬆️</button>
             <button class="btnSm" onclick="moveDown(${i})">⬇️</button>
-          </div></div>`;
+          </div>
+          <div>${q.title}${q.by ? " - by " + q.by : ""}</div>
+        </div>`;
       });
     }
 
