@@ -9,48 +9,45 @@
     h1 { font-size:20px; margin:0; }
     .tab { display:none; padding:12px; }
     .card { padding:12px; border:1px solid #223; border-radius:12px; background:#0f1524; margin-bottom:12px; }
-    .list { display:grid; gap:8px; max-height:45vh; overflow-y:auto; }
-    .listItem { display:flex; justify-content:space-between; align-items:center; padding:8px; border:1px solid #223; border-radius:8px; }
-    .listInfo { display:flex; align-items:center; gap:10px; }
-    .thumb { width:80px; border-radius:6px; }
-    .btnSm { padding:4px 8px; font-size:12px; border-radius:6px; border:1px solid #475569; background:#1f2937; color:#e8edf3; cursor:pointer; margin-left:4px; }
-    /* Toast */
-    #toast { position:fixed; top:20px; right:20px; background:#1f2937; padding:10px 16px; border-radius:8px; border:1px solid #475569; color:#e8edf3; display:none; z-index:9999; }
+    .list { display:grid; gap:8px; max-height:45vh; overflow-y:auto; text-align:left; }
+    .listItem { display:flex; justify-content:flex-start; align-items:center; gap:6px; padding:8px; border:1px solid #223; border-radius:8px; }
+    .btnSm { padding:4px 8px; font-size:12px; border-radius:6px; border:1px solid #475569; background:#1f2937; color:#e8edf3; cursor:pointer; }
+    #toast { position:fixed; top:10px; right:10px; background:#1f2937; color:#fff; padding:8px 12px; border-radius:6px; opacity:0; transition:opacity 0.5s; }
+    .light { background:#fff; color:#000; }
+    .pink { background:#ffe4f1; color:#c2185b; }
+    .festival { background:#800; color:#ffd700; }
   </style>
 </head>
 <body>
   <header>
     <h1>KTV 點歌控制器</h1>
     <div id="status">🔄 嘗試連線 Host 中...</div>
-    <div>
-      PIN 碼：<input id="pinBox" placeholder="輸入 PIN"/>
-      暱稱：<input id="nickname" placeholder="輸入暱稱"/>
-    </div>
+    暱稱：<input id="nickname" style="width:100px;"/>
+    <div>PIN 碼：<input id="pinBox" placeholder="輸入 PIN"/></div>
     <div>
       <button onclick="switchTab('search')">搜尋 / 點歌</button>
       <button onclick="switchTab('charts')">排行榜</button>
       <button onclick="switchTab('favorites')">收藏</button>
       <button onclick="switchTab('history')">歷史</button>
-      <button onclick="switchTab('queue')">播放佇列</button>
+      <button onclick="switchTab('ranking')">點歌排行</button>
+      <button onclick="switchTab('wall')">訊息牆</button>
     </div>
   </header>
 
-  <!-- 搜尋 / 點歌 -->
+  <!-- 搜尋 / 佇列 -->
   <div id="tab-search" class="tab" style="display:block;">
-    <div class="card" style="background:#1a2235; border:2px solid #475569;">
-      <div><b>🎶 現在播放：</b> <span id="nowPlaying">暫無</span></div>
-      <div><b>⏭ 下一首：</b> <span id="nextSong">暫無</span></div>
-    </div>
     <div class="card">
-      <form id="searchForm" onsubmit="return false;" style="display:flex; gap:8px;">
-        <button type="button" onclick="doSearch()">搜尋</button>
-        <input id="searchQuery" placeholder="歌名、歌手" style="flex:1;" />
+      <form id="searchForm">
+        <button type="submit">搜尋</button>
+        <input id="searchQuery" placeholder="歌名、歌手" style="width:70%;" />
       </form>
     </div>
     <div class="card"><div>搜尋結果</div><div id="searchResults" class="list"></div></div>
+    <div class="card"><div>播放佇列</div><div id="queue" class="list"></div></div>
+    <div class="card"><div>現在播放</div><div id="nowPlaying"></div><div id="nextSong"></div></div>
   </div>
 
-  <!-- 排行榜 -->
+  <!-- 外部排行榜 -->
   <div id="tab-charts" class="tab">
     <h3>熱門排行榜</h3>
     <button onclick="openChart('ytmusic')">YouTube Music</button>
@@ -59,165 +56,132 @@
     <button onclick="openChart('apple')">Apple Music</button>
     <button onclick="openChart('cashbox')">錢櫃</button>
     <button onclick="openChart('holiday')">好樂迪</button>
-    <button onclick="openChart('partyworld')">星聚點</button>
+    <button onclick="openChart('star')">星聚點</button>
   </div>
 
   <!-- 收藏 -->
   <div id="tab-favorites" class="tab">
     <h3>收藏清單</h3>
-    <button class="btnSm" onclick="clearFavorites()">🗑 清除全部收藏</button>
+    <div><button onclick="clearFavorites()">清除全部</button></div>
     <div id="favoritesList" class="list"></div>
   </div>
 
   <!-- 歷史 -->
   <div id="tab-history" class="tab">
     <h3>歷史紀錄</h3>
-    <button class="btnSm" onclick="clearHistory()">🗑 清除全部歷史</button>
+    <div><button onclick="clearHistory()">清除全部</button></div>
     <div id="historyList" class="list"></div>
   </div>
 
-  <!-- 播放佇列（只讀） -->
-  <div id="tab-queue" class="tab">
-    <h3>播放佇列</h3>
-    <div id="queue" class="list"></div>
+  <!-- 點歌排行 -->
+  <div id="tab-ranking" class="tab">
+    <h3>點歌排行榜</h3>
+    <div id="rankingList" class="list"></div>
   </div>
 
-  <!-- 重複點歌提醒 Modal -->
-  <div id="duplicateModal" style="
-    display:none; position:fixed; top:0; left:0; width:100%; height:100%;
-    background:rgba(0,0,0,0.6); backdrop-filter:blur(3px);
-    justify-content:center; align-items:center; z-index:9999;
-  ">
-    <div style="background:#1f2937; padding:20px; border-radius:12px; width:300px; text-align:center; color:#e8edf3; border:1px solid #475569;">
-      <h3>⚠️ 重複點歌</h3>
-      <p id="duplicateSongTitle" style="margin:10px 0;">這首歌已存在</p>
-      <div style="margin-top:15px; display:flex; justify-content:space-around;">
-        <button id="btnCancelDup" class="btnSm">取消</button>
-        <button id="btnConfirmDup" class="btnSm" style="background:#2563eb; border-color:#2563eb;">確定</button>
-      </div>
+  <!-- 訊息牆 -->
+  <div id="tab-wall" class="tab">
+    <h3>訊息牆</h3>
+    <div>
+      <button class="btnSm" onclick="sendFeedback('👏')">👏</button>
+      <button class="btnSm" onclick="sendFeedback('👍')">👍</button>
+      <button class="btnSm" onclick="sendFeedback('💔')">💔</button>
+      <button class="btnSm" onclick="sendFeedback('😂')">😂</button>
     </div>
+    <div id="wallList" class="list"></div>
   </div>
 
-  <!-- Toast -->
   <div id="toast"></div>
 
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script>
     const API_KEY="AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE";
     let conn, queue=[], history=[], favorites=[], needPIN=false;
-    let pendingDuplicate=null;
+    let ranking={}, wall=[], defaultNickname;
+    const mahjong=["東風","南風","西風","北風","紅中","發財","白板"];
 
-    // 麻將暱稱預設
-    const mahjongNames=["一萬","二萬","三萬","四萬","五萬","六萬","七萬","八萬","九萬","一筒","二筒","三筒","四筒","五筒","六筒","七筒","八筒","九筒","一條","二條","三條","四條","五條","六條","七條","八條","九條","東","南","西","北","中","發","白"];
-    if(!localStorage.getItem("nickname")){
-      const rand=mahjongNames[Math.floor(Math.random()*mahjongNames.length)];
-      localStorage.setItem("nickname",rand);
-    }
-    document.addEventListener("DOMContentLoaded", ()=>{
-      document.getElementById("nickname").value=localStorage.getItem("nickname");
-    });
-
-    const hostId = new URLSearchParams(window.location.search).get("host") || "ktv-host";
-    const peerOptions = { host:"0.peerjs.com", port:443, path:"/", secure:true, config:{ iceServers:[{urls:"stun:stun.l.google.com:19302"}] } };
+    const urlParams=new URLSearchParams(window.location.search);
+    const hostId=urlParams.get("host")||"ktv-host";
 
     function switchTab(tab){
       document.querySelectorAll(".tab").forEach(el=>el.style.display="none");
       document.getElementById("tab-"+tab).style.display="block";
       if(tab==="favorites") renderFavorites();
       if(tab==="history") renderHistory();
-      if(tab==="queue") renderQueue();
+      if(tab==="ranking") renderRanking();
+      if(tab==="wall") renderWall();
     }
 
-    function connectWithRetry(attempt=1){
-      const peer = new Peer(null, peerOptions);
-      peer.on("open", id=>{
-        document.getElementById("status").innerText=`🔌 Peer 就緒 (${id})`;
-        conn = peer.connect(hostId);
-        conn.on("open", ()=>{
-          document.getElementById("status").innerText=`✅ 已連線 Host(${hostId})`;
-        });
-        conn.on("data", msg=>handleMsg(msg));
-        conn.on("close", ()=>retry("closed"));
-        conn.on("error", err=>retry(err));
+    function showToast(msg){
+      const el=document.getElementById("toast");
+      el.innerText=msg;
+      el.style.opacity=1;
+      setTimeout(()=>el.style.opacity=0,2000);
+    }
+
+    function connectHost(){
+      const peer=new Peer(null, { host:"0.peerjs.com", port:443, path:"/", secure:true, config:{ iceServers:[{urls:"stun:stun.l.google.com:19302"}]} });
+      conn=peer.connect(hostId);
+      conn.on("open",()=>{
+        document.getElementById("status").innerText="✅ 已連線 Host("+hostId+")";
+        send({type:"register",name:getNickname()});
       });
-      peer.on("error", err=>retry(err));
-
-      function retry(reason){
-        if(attempt>8){ document.getElementById("status").innerText="❌ 無法連線 Host"; return; }
-        const delay=Math.pow(2,attempt)*500;
-        document.getElementById("status").innerText=`⚠️ 連線失敗，${delay/1000}s 後重試 (${attempt})`;
-        setTimeout(()=>connectWithRetry(attempt+1),delay);
-      }
+      conn.on("data",(msg)=>{
+        if(msg.type==="sync"){
+          queue=msg.payload.queue||[];
+          history=msg.payload.history||[];
+          ranking=msg.payload.ranking||{};
+          wall=msg.payload.wall||[];
+          renderQueue(); renderHistory(); renderRanking(); renderWall();
+          document.getElementById("nowPlaying").innerText= msg.payload.current? (msg.payload.current.by? msg.payload.current.by+" 點播 "+msg.payload.current.title: msg.payload.current.title):"暫無";
+          document.getElementById("nextSong").innerText= queue[0]? "下一首："+(queue[0].by? queue[0].by+" 點播 "+queue[0].title: queue[0].title):"";
+          applyTheme(msg.payload.theme);
+        }
+      });
     }
+    connectHost();
 
     function getPIN(){ return document.getElementById("pinBox").value; }
-    function getNickname(){ 
-      const v=document.getElementById("nickname").value || "匿名";
+    function send(msg){ if(conn&&conn.open) conn.send(msg); else alert("未連線 Host"); }
+
+    document.addEventListener("DOMContentLoaded",()=>{
+      const shuffled=[...mahjong].sort(()=>Math.random()-0.5);
+      defaultNickname=shuffled[0];
+      if(!localStorage.getItem("nickname")){
+        localStorage.setItem("nickname",defaultNickname);
+      }
+      document.getElementById("nickname").value=localStorage.getItem("nickname");
+      document.getElementById("nickname").addEventListener("input",getNickname);
+    });
+
+    function getNickname(){
+      let v=(document.getElementById("nickname").value||"").trim();
+      if(!v){ v=defaultNickname; document.getElementById("nickname").value=v; }
       localStorage.setItem("nickname",v);
+      send({type:"rename",name:v});
       return v;
     }
-    function send(msg){ if(conn && conn.open) conn.send(msg); }
 
-    function handleMsg(msg){
-      if(msg.type==="sync"){
-        queue=msg.payload.queue||[];
-        history=msg.payload.history||[];
-        needPIN=msg.payload.needPIN;
-        document.getElementById("nowPlaying").innerText = msg.payload.current ? msg.payload.current.title+(msg.payload.current.by?" - by "+msg.payload.current.by:"") : "暫無";
-        document.getElementById("nextSong").innerText = (queue.length>0) ? queue[0].title+(queue[0].by?" - by "+queue[0].by:"") : "暫無";
-        renderQueue(); renderHistory();
-      }
-      if(msg.type==="confirmEnqueue"){
-        pendingDuplicate=msg.payload;
-        document.getElementById("duplicateSongTitle").innerText=`要重複點播《${pendingDuplicate.title}》嗎？`;
-        document.getElementById("duplicateModal").style.display="flex";
-      }
-    }
-
-    document.getElementById("btnCancelDup").onclick=()=>{
-      pendingDuplicate=null;
-      document.getElementById("duplicateModal").style.display="none";
+    document.getElementById("searchForm").onsubmit=async(e)=>{
+      e.preventDefault();
+      let q=document.getElementById("searchQuery").value; if(!q) return;
+      let url=`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=10&q=${encodeURIComponent(q)}&key=${API_KEY}`;
+      let res=await fetch(url); let data=await res.json();
+      const el=document.getElementById("searchResults"); el.innerHTML="";
+      (data.items||[]).forEach(it=>{
+        const title=it.snippet.title.replace(/"/g,"&quot;");
+        el.innerHTML+=`<div class="listItem">
+          <button class="btnSm" onclick='send({type:"enqueue",payload:{videoId:"${it.id.videoId}",title:"${title}",by:getNickname()}}); showToast("✅ 已送出："+title)'>佇列</button>
+          <button class="btnSm" onclick='send({type:"insertNext",pin:getPIN(),payload:{videoId:"${it.id.videoId}",title:"${title}",by:getNickname()}})'>插播</button>
+          <button class="btnSm" onclick='addFavorite("${it.id.videoId}","${title}")'>⭐</button>
+          ${title}
+        </div>`;
+      });
     };
-    document.getElementById("btnConfirmDup").onclick=()=>{
-      if(pendingDuplicate){
-        send({type:"forceEnqueue", payload:pendingDuplicate});
-        pendingDuplicate=null;
-      }
-      document.getElementById("duplicateModal").style.display="none";
-    };
-
-    async function doSearch(){
-      let q=document.getElementById("searchQuery").value;
-      if(!q) return;
-      try {
-        let url=`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=10&q=${encodeURIComponent(q)}&key=${API_KEY}`;
-        let res=await fetch(url);
-        let data=await res.json();
-        const el=document.getElementById("searchResults"); el.innerHTML="";
-        (data.items||[]).forEach(it=>{
-          let vid=it.id.videoId, title=it.snippet.title, thumb=it.snippet.thumbnails.default.url;
-          el.innerHTML+=`<div class="listItem">
-            <div class="listInfo"><img class="thumb" src="${thumb}" /><div>${title}</div></div>
-            <div>
-              <button class="btnSm" onclick='enqueueSong("${vid}","${title}")'>佇列</button>
-              <button class="btnSm" onclick='send({type:"insertNext",pin:getPIN(),payload:{videoId:"${vid}",title:"${title}",by:getNickname()}})'>插播</button>
-              <button class="btnSm" onclick='addFavorite("${vid}","${title}")'>⭐ 收藏</button>
-            </div>
-          </div>`;
-        });
-      } catch(err){
-        document.getElementById("searchResults").innerHTML=`<div style="color:red;">搜尋失敗: ${err}</div>`;
-      }
-    }
-
-    function enqueueSong(id,title){
-      send({type:"enqueue",payload:{videoId:id,title:title,by:getNickname()}});
-      showToast("✅ 已送出："+title);
-    }
 
     function renderQueue(){
       const el=document.getElementById("queue"); el.innerHTML="";
-      queue.forEach(q=>{ el.innerHTML+=`<div class="listItem"><div>${q.title}${q.by?" - by "+q.by:""}</div></div>`; });
+      queue.forEach((q)=>{ el.innerHTML+=`<div class="listItem">${q.by? q.by+" 點播 ":""}${q.title}</div>`; });
     }
 
     function addFavorite(id,title){
@@ -229,8 +193,7 @@
       favorites=JSON.parse(localStorage.getItem("favorites")||"[]");
       const el=document.getElementById("favoritesList"); el.innerHTML="";
       favorites.forEach(f=>{
-        el.innerHTML+=`<div class="listItem"><div>${f.title}</div>
-        <button class="btnSm" onclick='send({type:"enqueue",payload:{videoId:"${f.videoId}",title:"${f.title}",by:getNickname()}})'>播放</button></div>`;
+        el.innerHTML+=`<div class="listItem"><button class="btnSm" onclick='send({type:"enqueue",payload:${JSON.stringify(f)}})'>播放</button>${f.title}</div>`;
       });
     }
     function clearFavorites(){ favorites=[]; localStorage.removeItem("favorites"); renderFavorites(); }
@@ -238,34 +201,44 @@
     function renderHistory(){
       const el=document.getElementById("historyList"); el.innerHTML="";
       history.slice().reverse().forEach(h=>{
-        el.innerHTML+=`<div class="listItem"><div>${h.title}${h.by?" - by "+h.by:""}</div>
-        <button class="btnSm" onclick='send({type:"enqueue",payload:{videoId:"${h.videoId}",title:"${h.title}",by:getNickname()}})'>再唱一次</button></div>`;
+        el.innerHTML+=`<div class="listItem"><button class="btnSm" onclick='send({type:"enqueue",payload:${JSON.stringify(h)}})'>再唱</button>${h.by? h.by+" 點播 ":""}${h.title}</div>`;
       });
     }
-    function clearHistory(){ history=[]; renderHistory(); send({type:"clearHistory", pin:getPIN()}); }
+    function clearHistory(){ history=[]; renderHistory(); }
+
+    function renderRanking(){
+      const el=document.getElementById("rankingList"); el.innerHTML="";
+      Object.entries(ranking).sort((a,b)=>b[1]-a[1]).forEach(([name,count],i)=>{
+        el.innerHTML+=`<div class="listItem">${i+1}. ${name} ${count} 首</div>`;
+      });
+    }
+
+    function renderWall(){
+      const el=document.getElementById("wallList"); el.innerHTML="";
+      wall.forEach(m=>{ el.innerHTML+=`<div class="listItem">${m.by}：${m.emoji}</div>`; });
+    }
+    function sendFeedback(emoji){ send({type:"feedback",by:getNickname(),emoji}); }
 
     function openChart(source){
       let url="";
       switch(source){
         case "ytmusic": url="https://charts.youtube.com/charts/TrendingSongs/tw"; break;
-        case "spotify": url="https://spotifycharts.com/regional"; break;
+        case "spotify": url="https://charts.spotify.com/charts/overview/global"; break;
         case "kkbox": url="https://kma.kkbox.com/charts/weekly/newrelease?lang=tc"; break;
         case "apple": url="https://music.apple.com/tw/browse/top-charts"; break;
-        case "cashbox": url="https://www.cashboxparty.com.tw/Ranking"; break;
-        case "holiday": url="https://www.holiday.com.tw/Rank"; break;
-        case "partyworld": url="https://www.partyworldktv.com.tw/Rank"; break;
+        case "cashbox": url="https://www.cashboxparty.com.tw"; break;
+        case "holiday": url="https://www.holiday.com.tw"; break;
+        case "star": url="https://www.moneydj.com/Ktv/StarLight"; break;
       }
       if(url) window.open(url,"_blank");
     }
 
-    function showToast(msg){
-      const el=document.getElementById("toast");
-      el.innerText=msg;
-      el.style.display="block";
-      setTimeout(()=>{ el.style.display="none"; },2000);
+    function applyTheme(theme){
+      document.body.className="";
+      if(theme==="light") document.body.classList.add("light");
+      if(theme==="pink") document.body.classList.add("pink");
+      if(theme==="festival") document.body.classList.add("festival");
     }
-
-    connectWithRetry();
   </script>
 </body>
 </html>
