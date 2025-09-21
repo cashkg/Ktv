@@ -20,7 +20,10 @@
   <header>
     <h1>KTV 點歌控制器</h1>
     <div id="status">🔄 嘗試連線 Host 中...</div>
-    <div>PIN 碼：<input id="pinBox" placeholder="輸入 PIN"/></div>
+    <div>
+      PIN 碼：<input id="pinBox" placeholder="輸入 PIN"/>
+      暱稱：<input id="nickname" placeholder="輸入暱稱"/>
+    </div>
     <div>
       <button onclick="switchTab('search')">搜尋 / 點歌</button>
       <button onclick="switchTab('charts')">排行榜</button>
@@ -56,6 +59,7 @@
     <button onclick="loadChart('cashbox')">錢櫃</button>
     <button onclick="loadChart('holiday')">好樂迪</button>
     <button onclick="loadChart('partyworld')">星聚點</button>
+    <div id="charts-content" style="margin-top:10px;"></div>
   </div>
 
   <!-- 收藏 -->
@@ -86,24 +90,30 @@
     <button class="btnSm" onclick="send({type:'sfx',payload:'boo'})">😮‍💨 噓聲</button>
   </div>
 
+  <!-- 重複點歌提醒 Modal -->
+  <div id="duplicateModal" style="
+    display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+    background:rgba(0,0,0,0.6); backdrop-filter:blur(3px);
+    justify-content:center; align-items:center; z-index:9999;
+  ">
+    <div style="background:#1f2937; padding:20px; border-radius:12px; width:300px; text-align:center; color:#e8edf3; border:1px solid #475569;">
+      <h3>⚠️ 重複點歌</h3>
+      <p id="duplicateSongTitle" style="margin:10px 0;">這首歌已存在</p>
+      <div style="margin-top:15px; display:flex; justify-content:space-around;">
+        <button id="btnCancelDup" class="btnSm">取消</button>
+        <button id="btnConfirmDup" class="btnSm" style="background:#2563eb; border-color:#2563eb;">確定</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script>
     const API_KEY="AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE";
     let conn, queue=[], history=[], favorites=[], needPIN=false;
+    let pendingDuplicate=null;
 
     const hostId = new URLSearchParams(window.location.search).get("host") || "ktv-host";
-    const peerOptions = {
-      host: "0.peerjs.com",
-      port: 443,
-      path: "/",
-      secure: true,
-      config: {
-        iceServers: [
-          { urls: "stun:stun.l.google.com:19302" },
-          { urls: "stun:global.stun.twilio.com:3478" }
-        ]
-      }
-    };
+    const peerOptions = { host:"0.peerjs.com", port:443, path:"/", secure:true, config:{ iceServers:[{urls:"stun:stun.l.google.com:19302"}] } };
 
     document.addEventListener("DOMContentLoaded", ()=>{
       document.querySelectorAll("button").forEach(b=>b.disabled=true);
@@ -133,10 +143,7 @@
       peer.on("error", err=>retry(err));
 
       function retry(reason){
-        if(attempt>8){ 
-          document.getElementById("status").innerText="❌ 無法連線 Host"; 
-          return; 
-        }
+        if(attempt>8){ document.getElementById("status").innerText="❌ 無法連線 Host"; return; }
         const delay=Math.pow(2,attempt)*500;
         document.getElementById("status").innerText=`⚠️ 連線失敗，${delay/1000}s 後重試 (${attempt})`;
         setTimeout(()=>connectWithRetry(attempt+1),delay);
@@ -144,6 +151,7 @@
     }
 
     function getPIN(){ return document.getElementById("pinBox").value; }
+    function getNickname(){ return document.getElementById("nickname").value || "匿名"; }
     function send(msg){ if(conn && conn.open) conn.send(msg); }
 
     function handleMsg(msg){
@@ -151,11 +159,28 @@
         queue=msg.payload.queue||[];
         history=msg.payload.history||[];
         needPIN=msg.payload.needPIN;
-        document.getElementById("nowPlaying").innerText = msg.payload.current ? msg.payload.current.title : "暫無";
-        document.getElementById("nextSong").innerText = (queue.length>0) ? queue[0].title : "暫無";
+        document.getElementById("nowPlaying").innerText = msg.payload.current ? msg.payload.current.title+(msg.payload.current.by?" - by "+msg.payload.current.by:"") : "暫無";
+        document.getElementById("nextSong").innerText = (queue.length>0) ? queue[0].title+(queue[0].by?" - by "+queue[0].by:"") : "暫無";
         renderQueue();
       }
+      if(msg.type==="confirmEnqueue"){
+        pendingDuplicate=msg.payload;
+        document.getElementById("duplicateSongTitle").innerText=`要重複點播《${pendingDuplicate.title}》嗎？`;
+        document.getElementById("duplicateModal").style.display="flex";
+      }
     }
+
+    document.getElementById("btnCancelDup").onclick=()=>{
+      pendingDuplicate=null;
+      document.getElementById("duplicateModal").style.display="none";
+    };
+    document.getElementById("btnConfirmDup").onclick=()=>{
+      if(pendingDuplicate){
+        send({type:"forceEnqueue", payload:pendingDuplicate});
+        pendingDuplicate=null;
+      }
+      document.getElementById("duplicateModal").style.display="none";
+    };
 
     async function doSearch(){
       let q=document.getElementById("searchQuery").value;
@@ -168,13 +193,10 @@
         (data.items||[]).forEach(it=>{
           let vid=it.id.videoId, title=it.snippet.title, thumb=it.snippet.thumbnails.default.url;
           el.innerHTML+=`<div class="listItem">
-            <div class="listInfo">
-              <img class="thumb" src="${thumb}" />
-              <div>${title}</div>
-            </div>
+            <div class="listInfo"><img class="thumb" src="${thumb}" /><div>${title}</div></div>
             <div>
-              <button class="btnSm" onclick='send({type:"enqueue",payload:{videoId:"${vid}",title:"${title}"}})'>佇列</button>
-              <button class="btnSm" onclick='send({type:"insertNext",pin:getPIN(),payload:{videoId:"${vid}",title:"${title}"}})'>插播</button>
+              <button class="btnSm" onclick='send({type:"enqueue",payload:{videoId:"${vid}",title:"${title}",by:getNickname()}})'>佇列</button>
+              <button class="btnSm" onclick='send({type:"insertNext",pin:getPIN(),payload:{videoId:"${vid}",title:"${title}",by:getNickname()}})'>插播</button>
               <button class="btnSm" onclick='addFavorite("${vid}","${title}")'>⭐ 收藏</button>
             </div>
           </div>`;
@@ -186,9 +208,7 @@
 
     function renderQueue(){
       const el=document.getElementById("queue"); el.innerHTML="";
-      queue.forEach((q,i)=>{
-        el.innerHTML+=`<div class="listItem"><div>${q.title}</div></div>`;
-      });
+      queue.forEach(q=>{ el.innerHTML+=`<div class="listItem"><div>${q.title}${q.by?" - by "+q.by:""}</div></div>`; });
     }
 
     function addFavorite(id,title){
@@ -201,25 +221,19 @@
       const el=document.getElementById("favoritesList"); el.innerHTML="";
       favorites.forEach(f=>{
         el.innerHTML+=`<div class="listItem"><div>${f.title}</div>
-        <button class="btnSm" onclick='send({type:"enqueue",payload:${JSON.stringify(f)}})'>播放</button></div>`;
+        <button class="btnSm" onclick='send({type:"enqueue",payload:{...${JSON.stringify(f)},by:getNickname()}})'>播放</button></div>`;
       });
     }
-    function clearFavorites(){
-      favorites=[]; localStorage.removeItem("favorites");
-      renderFavorites();
-    }
+    function clearFavorites(){ favorites=[]; localStorage.removeItem("favorites"); renderFavorites(); }
 
     function renderHistory(){
       const el=document.getElementById("historyList"); el.innerHTML="";
       history.forEach(h=>{
-        el.innerHTML+=`<div class="listItem"><div>${h.title}</div>
-        <button class="btnSm" onclick='send({type:"enqueue",payload:${JSON.stringify(h)}})'>再唱一次</button></div>`;
+        el.innerHTML+=`<div class="listItem"><div>${h.title}${h.by?" - by "+h.by:""}</div>
+        <button class="btnSm" onclick='send({type:"enqueue",payload:{...${JSON.stringify(h)},by:getNickname()}})'>再唱一次</button></div>`;
       });
     }
-    function clearHistory(){
-      history=[]; renderHistory();
-      send({type:"clearHistory", pin:getPIN()});
-    }
+    function clearHistory(){ history=[]; renderHistory(); send({type:"clearHistory", pin:getPIN()}); }
 
     function loadChart(source){
       let url="";
@@ -232,7 +246,7 @@
         case "holiday": url="https://www.holiday.com.tw/Rank"; break;
         case "partyworld": url="https://www.partyworldktv.com.tw/Rank"; break;
       }
-      window.open(url, "_blank");
+      document.getElementById("charts-content").innerHTML=`<iframe src="${url}" width="100%" height="600px"></iframe>`;
     }
 
     connectWithRetry();
