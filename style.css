@@ -1,0 +1,10 @@
+body { font-family: Arial, sans-serif; background:#0b0f1a; color:#e8edf3; margin:0; text-align:center; }
+header { padding:12px; border-bottom:1px solid #223; }
+h1 { font-size:20px; margin:0; }
+.card { padding:12px; border:1px solid #223; border-radius:12px; background:#0f1524; margin:12px auto; width:90%; max-width:700px; }
+.list { display:grid; gap:8px; max-height:45vh; overflow-y:auto; text-align:left; }
+.listItem { display:flex; justify-content:flex-start; align-items:center; gap:6px; padding:8px; border:1px solid #223; border-radius:8px; }
+.btnSm { padding:6px 10px; border-radius:6px; border:1px solid #475569; background:#1f2937; color:#e8edf3; cursor:pointer; font-size:12px; }
+nav { margin-top:10px; }
+nav button { margin:0 4px; }
+.latest { margin-top:10px; font-size:14px; color:#ffcc66; }
