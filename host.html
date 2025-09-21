@@ -209,14 +209,17 @@
       wall.forEach(m=>{ el.innerHTML+=`<div class="listItem">${m.by}：${m.emoji}</div>`; });
     }
 
+    // ✅ sync 加入 pong
     function sync(){
       conns = conns.filter(c=>c.open);
       renderUsers(); renderRanking(); renderWall();
-      const payload={queue,current,history, needPIN:true,
+      const payload={
+        queue,current,history, needPIN:true,
         progress: player?player.getCurrentTime():0,
         duration: player?player.getDuration():0,
         ranking, theme:document.getElementById("themeSelect").value,
-        wall};
+        wall, pong:true
+      };
       conns.forEach(c=>c.send({type:"sync",payload}));
     }
     setInterval(()=> sync(),1000);
