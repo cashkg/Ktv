@@ -6,15 +6,14 @@
   <title>KTV 系統入口</title>
   <link rel="stylesheet" href="style.css" />
   <style>
-    /* 確保即使 style.css 還沒定義，也有基本排版 */
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans TC, Arial, sans-serif; margin: 24px; }
+    body { font-family: system-ui, Noto Sans TC, sans-serif; margin: 24px; }
     h1 { margin-bottom: 8px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; align-items: start; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
     .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; }
     .qr { display: grid; place-items: center; height: 220px; }
-    .row { display: flex; gap: 8px; flex-wrap: wrap; }
-    input.link { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; }
-    button { padding: 8px 12px; border: 1px solid #999; border-radius: 8px; background:#fff; cursor: pointer; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    input.link { width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+    button { padding: 6px 12px; border: 1px solid #999; border-radius: 6px; background:#fff; cursor: pointer; }
     button:active { transform: translateY(1px); }
     small { color:#666; }
   </style>
@@ -26,47 +25,49 @@
   <div class="grid">
     <section class="card">
       <h2>Host</h2>
-      <div id="qr-host" class="qr" aria-label="Host QR"></div>
+      <div id="qr-host" class="qr"></div>
       <input id="url-host" class="link" readonly />
-      <div class="row" style="margin-top:8px">
+      <div class="row">
         <button id="open-host">開啟 Host</button>
         <button id="copy-host">複製連結</button>
       </div>
-      <small>用於主控台與播放端。</small>
+      <small>主控台與播放端</small>
     </section>
 
     <section class="card">
       <h2>Controller</h2>
-      <div id="qr-ctrl" class="qr" aria-label="Controller QR"></div>
+      <div id="qr-ctrl" class="qr"></div>
       <input id="url-ctrl" class="link" readonly />
-      <div class="row" style="margin-top:8px">
+      <div class="row">
         <button id="open-ctrl">開啟 Controller</button>
         <button id="copy-ctrl">複製連結</button>
       </div>
-      <small>觀眾／點歌者以手機掃描進入。</small>
+      <small>觀眾／點歌者裝置</small>
     </section>
   </div>
 
-  <!-- QRCode 產生器（高錯誤更正等級 H） -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha512-Mq6wS1r6F9X4Q7mJtq0xVv4o3mGd5b2pYJk0JmWQm0f0lC3b2m8Hf5p0r1Ue0h6CkJH6m1q2Hn8Hq9d1oCwB3Q==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <!-- 本地版 qrcode.min.js（請把檔案放在根目錄） -->
+  <script src="qrcode.min.js"></script>
   <script>
     (function () {
       const hostUrl = new URL('host.html', location.href).href;
       const ctrlUrl = new URL('controller.html', location.href).href;
 
-      // 顯示實際連結
+      // 顯示連結
       document.getElementById('url-host').value = hostUrl;
       document.getElementById('url-ctrl').value = ctrlUrl;
 
-      // 產生 QR（高錯誤更正）
-      const mkQR = (el, text) => new QRCode(el, {
-        text, width: 200, height: 200,
-        correctLevel: QRCode.CorrectLevel.H,
-        // 留白讓相機好掃
-        margin: 2
+      // 產生 QR Code
+      new QRCode(document.getElementById('qr-host'), {
+        text: hostUrl,
+        width: 200, height: 200,
+        correctLevel: QRCode.CorrectLevel.H
       });
-      mkQR(document.getElementById('qr-host'), hostUrl);
-      mkQR(document.getElementById('qr-ctrl'), ctrlUrl);
+      new QRCode(document.getElementById('qr-ctrl'), {
+        text: ctrlUrl,
+        width: 200, height: 200,
+        correctLevel: QRCode.CorrectLevel.H
+      });
 
       // 操作按鈕
       document.getElementById('open-host').onclick = () => location.href = hostUrl;
