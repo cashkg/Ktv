@@ -1,264 +1,65 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-Hant" data-theme="light">
 <head>
   <meta charset="UTF-8">
-  <title>KTV 點歌控制器</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KTV Controller</title>
+  <link rel="stylesheet" href="style.css">
   <style>
-    body { font-family: Arial, sans-serif; background:#0b0f1a; color:#e8edf3; margin:0; }
-    header { padding:12px; border-bottom:1px solid #223; text-align:center; }
-    h1 { font-size:20px; margin:0; }
-    .tab { display:none; padding:12px; }
-    .card { padding:12px; border:1px solid #223; border-radius:12px; background:#0f1524; margin-bottom:12px; }
-    .list { display:grid; gap:8px; max-height:45vh; overflow-y:auto; text-align:left; }
-    .listItem { display:flex; justify-content:flex-start; align-items:center; gap:6px; padding:8px; border:1px solid #223; border-radius:8px; }
-    .btnSm { padding:4px 8px; font-size:12px; border-radius:6px; border:1px solid #475569; background:#1f2937; color:#e8edf3; cursor:pointer; }
-    #toast { position:fixed; top:10px; right:10px; background:#1f2937; color:#fff; padding:8px 12px; border-radius:6px; opacity:0; transition:opacity 0.5s; }
-    .status-ok { color: #22c55e; }
-    .status-warn { color: #facc15; }
-    .status-err { color: #ef4444; }
-    .light { background:#fff; color:#000; }
-    .pink { background:#ffe4f1; color:#c2185b; }
-    .festival { background:#800; color:#ffd700; }
+    body { font-family: system-ui, Noto Sans TC, sans-serif; margin: 16px; }
+    header { display:flex; justify-content:space-between; align-items:center; }
+    .status { font-size: 14px; color: #666; }
+    #progress-bar {
+      width: 100%; height: 20px;
+      background: #ccc; border-radius: 10px; overflow: hidden;
+      margin-top: 16px;
+    }
+    #progress-fill {
+      height: 100%; width: 0%;
+      background: #4caf50; transition: width 0.3s linear;
+    }
   </style>
 </head>
 <body>
   <header>
-    <h1>KTV 點歌控制器</h1>
-    <div id="status" class="status-warn">🔄 嘗試連線 Host 中...</div>
-    暱稱：<input id="nickname" style="width:100px;"/>
-    <div>PIN 碼：<input id="pinBox" placeholder="輸入 PIN"/></div>
-    <div>
-      <button onclick="switchTab('search')">搜尋 / 點歌</button>
-      <button onclick="switchTab('charts')">排行榜</button>
-      <button onclick="switchTab('favorites')">收藏</button>
-      <button onclick="switchTab('history')">歷史</button>
-      <button onclick="switchTab('ranking')">點歌排行</button>
-      <button onclick="switchTab('wall')">訊息牆</button>
-    </div>
+    <h1>Controller 控制端</h1>
+    <span id="status" class="status">未連線</span>
   </header>
 
-  <!-- 搜尋 -->
-  <div id="tab-search" class="tab" style="display:block;">
-    <div class="card">
-      <form id="searchForm">
-        <button type="submit">搜尋</button>
-        <input id="searchQuery" placeholder="歌名、歌手" style="width:70%;" />
-      </form>
-    </div>
-    <div class="card"><div>搜尋結果</div><div id="searchResults" class="list"></div></div>
-    <div class="card"><div>播放佇列</div><div id="queue" class="list"></div></div>
-    <div class="card"><div>現在播放</div><div id="nowPlaying"></div><div id="nextSong"></div></div>
-  </div>
+  <main>
+    <section>
+      <h2>播放進度</h2>
+      <div id="progress-bar"><div id="progress-fill"></div></div>
+      <p id="progress-text">0%</p>
+    </section>
 
-  <!-- 收藏 -->
-  <div id="tab-favorites" class="tab">
-    <h3>收藏清單</h3>
-    <div><button onclick="clearFavorites()">清除全部</button></div>
-    <div id="favoritesList" class="list"></div>
-  </div>
+    <section style="margin-top:20px;">
+      <h2>功能</h2>
+      <button id="btnSend">送出測試訊息</button>
+    </section>
+  </main>
 
-  <!-- 歷史 -->
-  <div id="tab-history" class="tab">
-    <h3>歷史紀錄</h3>
-    <div><button onclick="clearHistory()">清除全部</button></div>
-    <div id="historyList" class="list"></div>
-  </div>
-
-  <!-- 點歌排行 -->
-  <div id="tab-ranking" class="tab">
-    <h3>點歌排行榜</h3>
-    <div id="rankingList" class="list"></div>
-  </div>
-
-  <!-- 訊息牆 -->
-  <div id="tab-wall" class="tab">
-    <h3>訊息牆</h3>
-    <div>
-      <button class="btnSm" onclick="sendFeedback('👏')">👏</button>
-      <button class="btnSm" onclick="sendFeedback('👍')">👍</button>
-      <button class="btnSm" onclick="sendFeedback('💔')">💔</button>
-      <button class="btnSm" onclick="sendFeedback('😂')">😂</button>
-    </div>
-    <div id="wallList" class="list"></div>
-  </div>
-
-  <div id="toast"></div>
-
-  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <script src="controller.js"></script>
   <script>
-    const API_KEY="AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE";
-    let conn, defaultNickname, lastPong=Date.now();
-    let queue=[], history=[], favorites=[], ranking={}, wall=[];
-    const urlParams=new URLSearchParams(window.location.search);
-    const hostId=urlParams.get("host")||"ktv-host";
+    // UI 狀態更新
+    const statusEl = document.getElementById("status");
+    const barFill = document.getElementById("progress-fill");
+    const barText = document.getElementById("progress-text");
 
-    const peerOptions={
-      host:"0.peerjs.com", port:443, path:"/", secure:true,
-      config:{ iceServers:[{urls:"stun:stun.l.google.com:19302"}] }
+    // 供 controller.js 呼叫
+    window.updateStatus = (text) => { statusEl.textContent = text; };
+    window.updateProgress = (percent) => {
+      const p = Math.max(0, Math.min(100, percent));
+      barFill.style.width = p + "%";
+      barText.textContent = p + "%";
     };
 
-    // 分頁切換
-    function switchTab(tab){
-      document.querySelectorAll(".tab").forEach(el=>el.style.display="none");
-      document.getElementById("tab-"+tab).style.display="block";
-      if(tab==="favorites") renderFavorites();
-      if(tab==="history") renderHistory();
-      if(tab==="ranking") renderRanking();
-      if(tab==="wall") renderWall();
-    }
-
-    // Toast
-    function showToast(msg){
-      const el=document.getElementById("toast");
-      el.innerText=msg;
-      el.style.opacity=1;
-      setTimeout(()=>el.style.opacity=0,2000);
-    }
-
-    // 嘗試連線 (重試)
-    function connectWithRetry(attempt=1){
-      const peer=new Peer(null, peerOptions);
-      peer.on("open", id=>{
-        document.getElementById("status").innerText=`🔌 Peer 就緒 (${id})`;
-        conn=peer.connect(hostId);
-        conn.on("open",()=>{
-          document.getElementById("status").innerText=`✅ 已連線 Host(${hostId})`;
-          document.getElementById("status").className="status-ok";
-          send({type:"register",name:getNickname()});
-        });
-        conn.on("data",msg=>handleMsg(msg));
-        conn.on("close",()=>retry("closed",attempt));
-        conn.on("error",err=>retry(err,attempt));
-      });
-      peer.on("error",err=>retry(err,attempt));
-
-      function retry(reason,attempt){
-        if(attempt>=8){
-          document.getElementById("status").innerText="❌ 無法連線 Host";
-          document.getElementById("status").className="status-err";
-          return;
-        }
-        const delay=Math.pow(2,attempt)*500;
-        document.getElementById("status").innerText=`⚠️ 連線失敗(${reason})，${delay/1000}s 後重試 (${attempt})`;
-        document.getElementById("status").className="status-warn";
-        setTimeout(()=>connectWithRetry(attempt+1),delay);
+    // 測試按鈕
+    document.getElementById("btnSend").onclick = () => {
+      if (typeof send === "function") {
+        send({ type: "test", msg: "Hello Host" });
       }
-    }
-
-    // 傳送訊息
-    function send(msg){ if(conn && conn.open) conn.send(msg); }
-
-    // 收到 Host 訊息
-    function handleMsg(msg){
-      if(msg.type==="sync"){
-        if(msg.payload.pong){
-          lastPong=Date.now();
-          document.getElementById("status").innerText="🟢 Host 連線正常";
-          document.getElementById("status").className="status-ok";
-        }
-        queue=msg.payload.queue||[];
-        history=msg.payload.history||[];
-        ranking=msg.payload.ranking||{};
-        wall=msg.payload.wall||[];
-        renderQueue(); renderHistory(); renderRanking(); renderWall();
-        document.getElementById("nowPlaying").innerText= msg.payload.current? (msg.payload.current.by? msg.payload.current.by+" 點播 "+msg.payload.current.title: msg.payload.current.title):"暫無";
-        document.getElementById("nextSong").innerText= queue[0]? "下一首："+(queue[0].by? queue[0].by+" 點播 "+queue[0].title: queue[0].title):"";
-        applyTheme(msg.payload.theme);
-      }
-    }
-
-    // 心跳檢查
-    setInterval(()=>{
-      if(Date.now()-lastPong>5000){
-        document.getElementById("status").innerText="⚠️ Host 無回應";
-        document.getElementById("status").className="status-warn";
-      }
-    },2000);
-
-    // 暱稱防空白
-    document.addEventListener("DOMContentLoaded",()=>{
-      const mahjong=["東風","南風","西風","北風","紅中","發財","白板"];
-      defaultNickname=mahjong[Math.floor(Math.random()*mahjong.length)];
-      if(!localStorage.getItem("nickname")) localStorage.setItem("nickname",defaultNickname);
-      document.getElementById("nickname").value=localStorage.getItem("nickname");
-    });
-
-    function getNickname(){
-      let v=(document.getElementById("nickname").value||"").trim();
-      if(!v){ v=defaultNickname; document.getElementById("nickname").value=v; }
-      localStorage.setItem("nickname",v);
-      send({type:"rename",name:v});
-      return v;
-    }
-
-    // 搜尋歌曲
-    document.getElementById("searchForm").onsubmit=async(e)=>{
-      e.preventDefault();
-      let q=document.getElementById("searchQuery").value; if(!q) return;
-      let url=`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=10&q=${encodeURIComponent(q)}&key=${API_KEY}`;
-      let res=await fetch(url); let data=await res.json();
-      const el=document.getElementById("searchResults"); el.innerHTML="";
-      (data.items||[]).forEach(it=>{
-        const title=it.snippet.title.replace(/"/g,"&quot;");
-        el.innerHTML+=`<div class="listItem">
-          <button class="btnSm" onclick='send({type:"enqueue",payload:{videoId:"${it.id.videoId}",title:"${title}",by:getNickname()}}); showToast("✅ 已送出："+title)'>佇列</button>
-          <button class="btnSm" onclick='send({type:"insertNext",pin:getPIN(),payload:{videoId:"${it.id.videoId}",title:"${title}",by:getNickname()}})'>插播</button>
-          <button class="btnSm" onclick='addFavorite("${it.id.videoId}","${title}")'>⭐</button>
-          ${title}
-        </div>`;
-      });
     };
-
-    // 佇列 / 歷史 / 收藏 / 排行榜 / 訊息牆
-    function renderQueue(){
-      const el=document.getElementById("queue"); el.innerHTML="";
-      queue.forEach((q)=>{ el.innerHTML+=`<div class="listItem">${q.by? q.by+" 點播 ":""}${q.title}</div>`; });
-    }
-    function renderHistory(){
-      const el=document.getElementById("historyList"); el.innerHTML="";
-      history.slice().reverse().forEach(h=>{
-        el.innerHTML+=`<div class="listItem"><button class="btnSm" onclick='send({type:"enqueue",payload:${JSON.stringify(h)}})'>再唱</button>${h.by? h.by+" 點播 ":""}${h.title}</div>`;
-      });
-    }
-    function clearHistory(){ history=[]; renderHistory(); }
-
-    function addFavorite(id,title){
-      favorites.push({videoId:id,title});
-      localStorage.setItem("favorites",JSON.stringify(favorites));
-      alert("已收藏："+title);
-    }
-    function renderFavorites(){
-      favorites=JSON.parse(localStorage.getItem("favorites")||"[]");
-      const el=document.getElementById("favoritesList"); el.innerHTML="";
-      favorites.forEach(f=>{
-        el.innerHTML+=`<div class="listItem"><button class="btnSm" onclick='send({type:"enqueue",payload:${JSON.stringify(f)}})'>播放</button>${f.title}</div>`;
-      });
-    }
-    function clearFavorites(){ favorites=[]; localStorage.removeItem("favorites"); renderFavorites(); }
-
-    function renderRanking(){
-      const el=document.getElementById("rankingList"); el.innerHTML="";
-      Object.entries(ranking).sort((a,b)=>b[1]-a[1]).forEach(([name,count],i)=>{
-        el.innerHTML+=`<div class="listItem">${i+1}. ${name} ${count} 首</div>`;
-      });
-    }
-
-    function renderWall(){
-      const el=document.getElementById("wallList"); el.innerHTML="";
-      wall.forEach(m=>{ el.innerHTML+=`<div class="listItem">${m.by}：${m.emoji}</div>`; });
-    }
-    function sendFeedback(emoji){ send({type:"feedback",by:getNickname(),emoji}); }
-
-    function getPIN(){ return document.getElementById("pinBox").value; }
-
-    function applyTheme(theme){
-      document.body.className="";
-      if(theme==="light") document.body.classList.add("light");
-      if(theme==="pink") document.body.classList.add("pink");
-      if(theme==="festival") document.body.classList.add("festival");
-    }
-
-    connectWithRetry();
   </script>
 </body>
 </html>
