@@ -1,65 +1,66 @@
 <!DOCTYPE html>
-<html lang="zh-Hant" data-theme="light">
+<html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>KTV Controller</title>
+  <title>KTV 點歌端 (Controller)</title>
   <link rel="stylesheet" href="style.css">
-  <style>
-    body { font-family: system-ui, Noto Sans TC, sans-serif; margin: 16px; }
-    header { display:flex; justify-content:space-between; align-items:center; }
-    .status { font-size: 14px; color: #666; }
-    #progress-bar {
-      width: 100%; height: 20px;
-      background: #ccc; border-radius: 10px; overflow: hidden;
-      margin-top: 16px;
-    }
-    #progress-fill {
-      height: 100%; width: 0%;
-      background: #4caf50; transition: width 0.3s linear;
-    }
-  </style>
 </head>
 <body>
   <header>
-    <h1>Controller 控制端</h1>
-    <span id="status" class="status">未連線</span>
+    <h1>KTV 點歌端 (Controller)</h1>
+    <div>
+      <label>輸入 Host ID：</label>
+      <input id="hostIdInput" placeholder="ktv-host" value="ktv-host"/>
+      <button onclick="connectHost()">連線</button>
+    </div>
+    <div>
+      <label>輸入名稱：</label>
+      <input id="userName" placeholder="匿名"/>
+    </div>
+    <div id="connStatus">尚未連線</div>
   </header>
 
-  <main>
-    <section>
-      <h2>播放進度</h2>
-      <div id="progress-bar"><div id="progress-fill"></div></div>
-      <p id="progress-text">0%</p>
-    </section>
+  <section class="card">
+    <h3>點歌</h3>
+    <div>
+      <input id="songTitle" placeholder="歌曲名稱"/>
+      <input id="songVideoId" placeholder="YouTube 影片 ID"/>
+      <button onclick="sendSong()">送出</button>
+    </div>
+  </section>
 
-    <section style="margin-top:20px;">
-      <h2>功能</h2>
-      <button id="btnSend">送出測試訊息</button>
-    </section>
-  </main>
+  <section class="card">
+    <h3>播放佇列</h3>
+    <div id="queue" class="list"></div>
+  </section>
 
+  <section class="card">
+    <h3>歷史紀錄</h3>
+    <div id="historyList" class="list"></div>
+  </section>
+
+  <section class="card">
+    <h3>訊息牆</h3>
+    <div id="wallList" class="list"></div>
+    <div style="margin-top:8px;">
+      <input id="emojiInput" placeholder="😀" maxlength="2"/>
+      <button onclick="sendFeedback()">送出表情</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>排行榜</h3>
+    <div id="rankingList" class="list"></div>
+  </section>
+
+  <section class="card">
+    <h3>進度</h3>
+    <progress id="progressBar" value="0" max="100" style="width:100%;"></progress>
+    <div id="timeInfo">0:00 / 0:00</div>
+  </section>
+
+  <!-- 外部資源 -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="controller.js"></script>
-  <script>
-    // UI 狀態更新
-    const statusEl = document.getElementById("status");
-    const barFill = document.getElementById("progress-fill");
-    const barText = document.getElementById("progress-text");
-
-    // 供 controller.js 呼叫
-    window.updateStatus = (text) => { statusEl.textContent = text; };
-    window.updateProgress = (percent) => {
-      const p = Math.max(0, Math.min(100, percent));
-      barFill.style.width = p + "%";
-      barText.textContent = p + "%";
-    };
-
-    // 測試按鈕
-    document.getElementById("btnSend").onclick = () => {
-      if (typeof send === "function") {
-        send({ type: "test", msg: "Hello Host" });
-      }
-    };
-  </script>
 </body>
 </html>
