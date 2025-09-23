@@ -1,45 +1,84 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>KTV 系統入口</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <link rel="stylesheet" href="style.css" />
   <style>
-    body { font-family: Arial, sans-serif; background:#0b0f1a; color:#e8edf3; text-align:center; padding:30px; }
-    h1 { margin-bottom:20px; }
-    .qr-container { display:flex; justify-content:center; gap:40px; margin-top:20px; flex-wrap:wrap; }
-    .qr-box { display:flex; flex-direction:column; align-items:center; gap:8px; }
-    .link { margin-top:8px; }
-    a { color:#60a5fa; text-decoration:none; }
+    /* 確保即使 style.css 還沒定義，也有基本排版 */
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans TC, Arial, sans-serif; margin: 24px; }
+    h1 { margin-bottom: 8px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; align-items: start; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; }
+    .qr { display: grid; place-items: center; height: 220px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    input.link { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; }
+    button { padding: 8px 12px; border: 1px solid #999; border-radius: 8px; background:#fff; cursor: pointer; }
+    button:active { transform: translateY(1px); }
+    small { color:#666; }
   </style>
 </head>
 <body>
   <h1>KTV 系統入口</h1>
-  <p>請用不同裝置掃描以下 QR Code 進入 <b>Host</b> 或 <b>Controller</b></p>
+  <p>掃描 QR Code 或使用按鈕進入。</p>
 
-  <div class="qr-container">
-    <div class="qr-box">
-      <div id="qr-host"></div>
-      <div class="link"><a id="link-host" target="_blank">👉 開啟 Host</a></div>
-    </div>
-    <div class="qr-box">
-      <div id="qr-controller"></div>
-      <div class="link"><a id="link-controller" target="_blank">👉 開啟 Controller</a></div>
-    </div>
+  <div class="grid">
+    <section class="card">
+      <h2>Host</h2>
+      <div id="qr-host" class="qr" aria-label="Host QR"></div>
+      <input id="url-host" class="link" readonly />
+      <div class="row" style="margin-top:8px">
+        <button id="open-host">開啟 Host</button>
+        <button id="copy-host">複製連結</button>
+      </div>
+      <small>用於主控台與播放端。</small>
+    </section>
+
+    <section class="card">
+      <h2>Controller</h2>
+      <div id="qr-ctrl" class="qr" aria-label="Controller QR"></div>
+      <input id="url-ctrl" class="link" readonly />
+      <div class="row" style="margin-top:8px">
+        <button id="open-ctrl">開啟 Controller</button>
+        <button id="copy-ctrl">複製連結</button>
+      </div>
+      <small>觀眾／點歌者以手機掃描進入。</small>
+    </section>
   </div>
 
+  <!-- QRCode 產生器（高錯誤更正等級 H） -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha512-Mq6wS1r6F9X4Q7mJtq0xVv4o3mGd5b2pYJk0JmWQm0f0lC3b2m8Hf5p0r1Ue0h6CkJH6m1q2Hn8Hq9d1oCwB3Q==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script>
-    const hostId = "ktv-" + Math.random().toString(36).substring(2, 6);
-    const baseUrl = window.location.origin + window.location.pathname.replace("index.html", "");
+    (function () {
+      const hostUrl = new URL('host.html', location.href).href;
+      const ctrlUrl = new URL('controller.html', location.href).href;
 
-    const hostUrl = baseUrl + "host.html?host=" + hostId;
-    const controllerUrl = baseUrl + "controller.html?host=" + hostId;
+      // 顯示實際連結
+      document.getElementById('url-host').value = hostUrl;
+      document.getElementById('url-ctrl').value = ctrlUrl;
 
-    document.getElementById("link-host").href = hostUrl;
-    document.getElementById("link-controller").href = controllerUrl;
+      // 產生 QR（高錯誤更正）
+      const mkQR = (el, text) => new QRCode(el, {
+        text, width: 200, height: 200,
+        correctLevel: QRCode.CorrectLevel.H,
+        // 留白讓相機好掃
+        margin: 2
+      });
+      mkQR(document.getElementById('qr-host'), hostUrl);
+      mkQR(document.getElementById('qr-ctrl'), ctrlUrl);
 
-    new QRCode(document.getElementById("qr-host"), hostUrl);
-    new QRCode(document.getElementById("qr-controller"), controllerUrl);
+      // 操作按鈕
+      document.getElementById('open-host').onclick = () => location.href = hostUrl;
+      document.getElementById('open-ctrl').onclick = () => location.href = ctrlUrl;
+
+      const copy = async (text) => {
+        try { await navigator.clipboard.writeText(text); }
+        catch { prompt('複製失敗，請手動複製：', text); }
+      };
+      document.getElementById('copy-host').onclick = () => copy(hostUrl);
+      document.getElementById('copy-ctrl').onclick = () => copy(ctrlUrl);
+    })();
   </script>
 </body>
 </html>
