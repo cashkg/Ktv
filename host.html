@@ -1,62 +1,44 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-Hant" data-theme="light">
 <head>
   <meta charset="UTF-8">
-  <title>KTV 主機端 (Host)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KTV Host</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    body { font-family: system-ui, Noto Sans TC, sans-serif; margin: 16px; }
+    header { display:flex; justify-content:space-between; align-items:center; }
+    .theme-toggle { cursor:pointer; padding:6px 10px; border:1px solid #999; border-radius:6px; background:#fff; }
+  </style>
 </head>
 <body>
   <header>
-    <h1>KTV 主機端 (Host)</h1>
-    <div><b>Host Peer ID：</b> <span id="peer-id">初始化中...</span></div>
-    <div>PIN 碼：<input id="pinInput" value="1234" size="6"/></div>
-    <div>
-      主題：
-      <select id="themeSelect">
-        <option value="dark">暗色</option>
-        <option value="light">亮色</option>
-        <option value="pink">粉色</option>
-        <option value="festival">節日</option>
-      </select>
-    </div>
-    <div id="status"></div>
-    <nav>
-      <button onclick="switchTab('queue')">播放佇列</button>
-      <button onclick="switchTab('history')">歷史紀錄</button>
-      <button onclick="switchTab('users')">使用者</button>
-      <button onclick="switchTab('ranking')">排行榜</button>
-      <button onclick="switchTab('wall')">訊息牆</button>
-    </nav>
+    <h1>Host 主控端</h1>
+    <button id="toggleTheme" class="theme-toggle">切換主題</button>
   </header>
 
-  <!-- 固定播放區 -->
-  <section id="playerSection" class="card" style="margin-top:12px;">
-    <h3>現在播放</h3>
-    <div id="nowPlaying">暫無</div>
-    <progress id="progressBar" value="0" max="100" style="width:100%; margin-top:8px;"></progress>
-    <div id="timeInfo">0:00 / 0:00</div>
-    <div id="player" style="margin-top:10px;"></div>
-    <div style="margin-top:10px;">
-      <button class="btnSm" onclick="playVideo()">播放</button>
-      <button class="btnSm" onclick="pauseVideo()">暫停</button>
-      <button class="btnSm" onclick="stopVideo()">停止</button>
-      <button class="btnSm" onclick="playNext()">下一首</button>
+  <main>
+    <p>這裡是 Host 主控介面。未來會顯示播放狀態、使用者清單、排行榜等。</p>
+    <div id="network-warning" style="color:red; display:none;">
+      ⚠ 偵測到跨網路連線，請確認安全性
     </div>
-    <div id="latestMsg" class="latest"></div>
-  </section>
+  </main>
 
-  <!-- 子頁面容器 -->
-  <div id="tab-queue" class="card tab" style="display:block;">
-    <h3>播放佇列</h3>
-    <div id="queue" class="list"></div>
-  </div>
-  <div id="tab-history" class="card tab"><h3>歷史紀錄</h3><div id="historyList" class="list"></div></div>
-  <div id="tab-users" class="card tab"><h3>使用者清單</h3><div id="userCount"></div><div id="userList" class="list"></div></div>
-  <div id="tab-ranking" class="card tab"><h3>排行榜</h3><div id="rankingList" class="list"></div></div>
-  <div id="tab-wall" class="card tab"><h3>訊息牆</h3><div id="wallList" class="list"></div></div>
-
-  <script src="https://www.youtube.com/iframe_api"></script>
-  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="host.js"></script>
+  <script>
+    // 主題切換邏輯
+    const root = document.documentElement;
+    const btn = document.getElementById('toggleTheme');
+    btn.addEventListener('click', () => {
+      const now = root.getAttribute('data-theme');
+      const next = now === 'light' ? 'dark' : 'light';
+      root.setAttribute('data-theme', next);
+    });
+
+    // TODO: 之後在 host.js 裡補上跨網路偵測後呼叫顯示警告
+    function showNetworkWarning() {
+      document.getElementById('network-warning').style.display = 'block';
+    }
+  </script>
 </body>
 </html>
