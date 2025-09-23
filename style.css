@@ -1,68 +1,67 @@
-/* 預設樣式 */
-:root {
-  --bg: #ffffff;
-  --fg: #000000;
-  --card-bg: #f7f7f7;
-  --btn-bg: #ffffff;
-  --btn-fg: #000000;
-  --btn-border: #999;
+body { 
+  font-family: Arial, sans-serif; 
+  margin:0; 
+  text-align:center; 
 }
 
-[data-theme="dark"] {
-  --bg: #1e1e1e;
-  --fg: #f2f2f2;
-  --card-bg: #2a2a2a;
-  --btn-bg: #333;
-  --btn-fg: #f2f2f2;
-  --btn-border: #666;
+/* 預設主題 dark */
+body[data-theme="dark"] { background:#0b0f1a; color:#e8edf3; }
+body[data-theme="light"] { background:#f9fafb; color:#111; }
+body[data-theme="pink"] { background:#ffe4f0; color:#333; }
+body[data-theme="festival"] { background:#142; color:#ffd700; }
+
+header { padding:12px; border-bottom:1px solid #223; }
+h1 { font-size:20px; margin:0; }
+
+.card { 
+  padding:12px; 
+  border:1px solid #223; 
+  border-radius:12px; 
+  background:#0f1524; 
+  margin:12px auto; 
+  width:90%; 
+  max-width:700px; 
 }
 
-body {
-  background-color: var(--bg);
-  color: var(--fg);
-  font-family: system-ui, Noto Sans TC, sans-serif;
-  margin: 0;
-  padding: 20px;
+.list { 
+  display:grid; 
+  gap:8px; 
+  max-height:45vh; 
+  overflow-y:auto; 
+  text-align:left; 
 }
 
-h1, h2 {
-  margin: 0 0 12px;
+.listItem { 
+  display:flex; 
+  justify-content:flex-start; 
+  align-items:center; 
+  gap:6px; 
+  padding:8px; 
+  border:1px solid #223; 
+  border-radius:8px; 
 }
 
-button {
-  background: var(--btn-bg);
-  color: var(--btn-fg);
-  border: 1px solid var(--btn-border);
-  border-radius: 8px;
-  padding: 8px 12px;
-  cursor: pointer;
-  font-size: 14px;
+.btnSm { 
+  padding:6px 10px; 
+  border-radius:6px; 
+  border:1px solid #475569; 
+  background:#1f2937; 
+  color:#e8edf3; 
+  cursor:pointer; 
+  font-size:12px; 
 }
 
-button:hover {
-  opacity: 0.85;
+nav { margin-top:10px; }
+nav button { margin:0 4px; }
+
+.latest { 
+  margin-top:10px; 
+  font-size:14px; 
+  color:#ffcc66; 
 }
 
-button:active {
-  transform: translateY(1px);
-}
-
-.card {
-  background: var(--card-bg);
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-
-/* index.html 專用的網格 */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 20px;
-}
-
-.qr {
-  display: grid;
-  place-items: center;
-  height: 220px;
+.warning { 
+  margin-top:8px; 
+  font-size:13px; 
+  color:#ff6666; 
 }
