@@ -68,7 +68,6 @@
     const hostParam = params.get("host");
     if(hostParam){
       document.getElementById("hostIdInput").value = hostParam;
-      // 延遲自動連線，避免 DOM 還沒準備好
       window.addEventListener("load", ()=> connectHost());
     }
   </script>
