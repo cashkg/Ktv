@@ -43,9 +43,22 @@ peer = new Peer(hostId, {
   config:{ iceServers:[{urls:"stun:stun.l.google.com:19302"}] } 
 });
 
-peer.on("open", ()=> {
+// Host 啟動成功
+peer.on("open", ()=>{
   document.getElementById("status").innerText="✅ Host 啟動成功";
   document.getElementById("networkWarning").innerText="提示：同一 Wi-Fi 下連線最佳，跨網路可能失敗";
+
+  // 產生 QRCode
+  const url = location.origin + location.pathname.replace("host.html","controller.html") + "?host=" + hostId;
+  QRCode.toCanvas(document.getElementById("qrcodeCanvas"), url, {
+    width: 256,
+    margin: 2,
+    color: { dark:"#000", light:"#fff" },
+    errorCorrectionLevel: "H"
+  }, function (error) {
+    if (error) console.error(error);
+    else console.log("QRCode 生成成功：", url);
+  });
 });
 
 // 自動重連
