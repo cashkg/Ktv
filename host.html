@@ -46,6 +46,12 @@
     <div id="latestMsg" class="latest"></div>
   </section>
 
+  <!-- QRCode 區 -->
+  <section class="card">
+    <h3>連線 QRCode</h3>
+    <canvas id="qrcodeCanvas"></canvas>
+  </section>
+
   <!-- 子頁面容器 -->
   <div id="tab-queue" class="card tab" style="display:block;">
     <h3>播放佇列</h3>
@@ -59,6 +65,7 @@
   <!-- 外部資源 -->
   <script src="https://www.youtube.com/iframe_api"></script>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
   <script src="host.js"></script>
 </body>
 </html>
