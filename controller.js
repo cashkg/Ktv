@@ -8,8 +8,10 @@ function connectHost(){
   myName = document.getElementById("userName").value || genGuestName();
 
   peer = new Peer(null, { 
-    host:"0.peerjs.com", port:443, path:"/", secure:true,
-    config:{ iceServers:[{urls:"stun:stun.l.google.com:19302"}] }
+    host:"0.peerjs.com",
+    port:443,
+    path:"/",
+    secure:true
   });
 
   peer.on("open", id=>{
