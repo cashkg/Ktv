@@ -10,7 +10,7 @@
     <h1>KTV 點歌端 (Controller)</h1>
     <div>
       <label>輸入 Host ID：</label>
-      <input id="hostIdInput" placeholder="ktv-host" value="ktv-host"/>
+      <input id="hostIdInput" placeholder="ktv-host" value=""/>
       <button onclick="connectHost()">連線</button>
     </div>
     <div>
@@ -62,5 +62,15 @@
   <!-- 外部資源 -->
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="controller.js"></script>
+  <script>
+    // 自動讀取網址參數 ?host=
+    const params = new URLSearchParams(window.location.search);
+    const hostParam = params.get("host");
+    if(hostParam){
+      document.getElementById("hostIdInput").value = hostParam;
+      // 延遲自動連線，避免 DOM 還沒準備好
+      window.addEventListener("load", ()=> connectHost());
+    }
+  </script>
 </body>
 </html>
