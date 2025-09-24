@@ -38,8 +38,12 @@ function onYouTubeIframeAPIReady() {
   });
 }
 
+// ✅ 強制使用 WSS
 peer = new Peer(hostId, { 
-  host:"0.peerjs.com", port:443, path:"/", secure:true, 
+  host:"0.peerjs.com", 
+  port:443, 
+  path:"/", 
+  secure:true,
   config:{ iceServers:[{urls:"stun:stun.l.google.com:19302"}] } 
 });
 
