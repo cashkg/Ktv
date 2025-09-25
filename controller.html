@@ -5,18 +5,9 @@
   <title>KTV 點歌端 (Controller)</title>
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-theme="light"> <!-- 預設淺色護眼主題 -->
   <header>
     <h1>KTV 點歌端 (Controller)</h1>
-    <div>
-      <label>輸入 Host ID：</label>
-      <input id="hostIdInput" placeholder="ktv-host" value=""/>
-      <button onclick="connectHost()">連線</button>
-    </div>
-    <div>
-      <label>輸入名稱：</label>
-      <input id="userName" placeholder="匿名"/>
-    </div>
     <div id="connStatus">尚未連線</div>
   </header>
 
@@ -32,9 +23,9 @@
     </div>
   </section>
 
-  <!-- 原本功能 -->
+  <!-- 手動輸入歌曲 -->
   <section class="card">
-    <h3>點歌</h3>
+    <h3>手動輸入歌曲</h3>
     <div>
       <input id="songTitle" placeholder="歌曲名稱"/>
       <input id="songVideoId" placeholder="YouTube 影片 ID"/>
@@ -42,16 +33,9 @@
     </div>
   </section>
 
-  <section class="card">
-    <h3>播放佇列</h3>
-    <div id="queue" class="list"></div>
-  </section>
-
-  <section class="card">
-    <h3>歷史紀錄</h3>
-    <div id="historyList" class="list"></div>
-  </section>
-
+  <!-- 其他功能 -->
+  <section class="card"><h3>播放佇列</h3><div id="queue" class="list"></div></section>
+  <section class="card"><h3>歷史紀錄</h3><div id="historyList" class="list"></div></section>
   <section class="card">
     <h3>訊息牆</h3>
     <div id="wallList" class="list"></div>
@@ -60,12 +44,7 @@
       <button onclick="sendFeedback()">送出表情</button>
     </div>
   </section>
-
-  <section class="card">
-    <h3>排行榜</h3>
-    <div id="rankingList" class="list"></div>
-  </section>
-
+  <section class="card"><h3>排行榜</h3><div id="rankingList" class="list"></div></section>
   <section class="card">
     <h3>進度</h3>
     <progress id="progressBar" value="0" max="100" style="width:100%;"></progress>
