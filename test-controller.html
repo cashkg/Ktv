@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>測試連線 Controller</title>
+</head>
+<body>
+  <h2>測試 Controller</h2>
+  <div id="status">尚未連線</div>
+
+  <!-- PeerJS -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <script>
+    const hostId = "ktv-host"; // 固定 Host
+    let peer = new Peer(null, { 
+      host: "0.peerjs.com",
+      port: 443,
+      path: "/",
+      secure: true
+    });
+
+    peer.on("open", id=>{
+      const conn = peer.connect(hostId);
+      conn.on("open", ()=>{
+        document.getElementById("status").innerText = "✅ 已連線到 Host: " + hostId;
+      });
+      conn.on("error", err=>{
+        document.getElementById("status").innerText = "❌ 連線錯誤: " + err;
+        console.error(err);
+      });
+      conn.on("close", ()=>{
+        document.getElementById("status").innerText = "❌ 與 Host 斷線";
+      });
+    });
+
+    peer.on("error", err=>{
+      document.getElementById("status").innerText = "❌ PeerJS 錯誤: " + err;
+      console.error(err);
+    });
+  </script>
+</body>
+</html>
