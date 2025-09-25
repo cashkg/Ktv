@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>TEST Controller Auto</title>
+</head>
+<body>
+  <h2>TEST Controller Auto</h2>
+  <div id="status">初始化中...</div>
+
+  <!-- PeerJS -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const hostId = params.get("host") || "ktv-host"; // 預設連 ktv-host
+    const myName = "TestClient-" + Math.floor(Math.random()*1000);
+
+    const statusEl = document.getElementById("status");
+    function setStatus(msg){
+      console.log(msg);
+      statusEl.innerText = msg;
+    }
+
+    setStatus("📡 嘗試連線到 Host: " + hostId);
+
+    const peer = new Peer(null, { 
+      host:"0.peerjs.com", 
+      port:443, 
+      path:"/", 
+      secure:true
+    });
+
+    peer.on("open", id=>{
+      setStatus("✅ PeerJS 已啟動 (ID: "+id+")，嘗試連 Host...");
+      const conn = peer.connect(hostId);
+
+      conn.on("open", ()=>{
+        setStatus("🎉 已連線到 Host: " + hostId);
+        conn.send({type:"register", name:myName});
+      });
+
+      conn.on("data", msg=>{
+        setStatus("📩 收到 Host 訊息: " + JSON.stringify(msg));
+      });
+
+      conn.on("close", ()=>{
+        setStatus("❌ 與 Host 斷線");
+      });
+
+      conn.on("error", err=>{
+        setStatus("❌ 連線錯誤: " + err);
+      });
+    });
+
+    peer.on("error", err=>{
+      setStatus("❌ PeerJS 錯誤: " + err);
+    });
+  </script>
+</body>
+</html>
