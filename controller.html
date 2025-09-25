@@ -20,6 +20,19 @@
     <div id="connStatus">尚未連線</div>
   </header>
 
+  <!-- 🔍 YouTube 搜尋區 -->
+  <section class="card">
+    <h3>搜尋 YouTube 歌曲</h3>
+    <input id="searchQuery" placeholder="輸入歌曲關鍵字"/>
+    <button onclick="searchSong()">搜尋</button>
+    <div id="searchResults" class="list"></div>
+    <div style="margin-top:8px;">
+      <button onclick="prevPage()">上一頁</button>
+      <button onclick="nextPage()">下一頁</button>
+    </div>
+  </section>
+
+  <!-- 原本功能 -->
   <section class="card">
     <h3>點歌</h3>
     <div>
@@ -62,14 +75,5 @@
   <!-- 外部資源 -->
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="controller.js"></script>
-  <script>
-    // 自動讀取網址參數 ?host=
-    const params = new URLSearchParams(window.location.search);
-    const hostParam = params.get("host");
-    if(hostParam){
-      document.getElementById("hostIdInput").value = hostParam;
-      window.addEventListener("load", ()=> connectHost());
-    }
-  </script>
 </body>
 </html>
