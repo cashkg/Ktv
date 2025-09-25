@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>TEST Controller Inline</title>
+</head>
+<body>
+  <h2>TEST Controller Inline</h2>
+  <div>
+    <label>Host ID：</label>
+    <input id="hostIdInput" value="ktv-host"/>
+    <button onclick="connectHost()">連線</button>
+  </div>
+  <div id="connStatus">尚未連線</div>
+
+  <!-- PeerJS -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <script>
+    function connectHost(){
+      const hostId = document.getElementById("hostIdInput").value || "ktv-host";
+      const myName = "TEST用戶";
+
+      let peer = new Peer(null, { 
+        host: "0.peerjs.com",
+        port: 443,
+        path: "/",
+        secure: true
+      });
+
+      peer.on("open", id=>{
+        const conn = peer.connect(hostId);
+        conn.on("open", ()=>{
+          document.getElementById("connStatus").innerText="✅ 已連線到 Host: " + hostId;
+          conn.send({type:"register", name:myName});
+        });
+        conn.on("data", msg=>console.log("📩 收到 Host 訊息:", msg));
+        conn.on("close", ()=> document.getElementById("connStatus").innerText="❌ 與 Host 斷線");
+      });
+
+      peer.on("error", err=>{
+        document.getElementById("connStatus").innerText="❌ PeerJS 錯誤: "+err;
+        console.error(err);
+      });
+    }
+  </script>
+</body>
+</html>
