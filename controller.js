@@ -5,6 +5,12 @@ let hostId = "";
 let myName = "匿名";
 let connected = false;
 
+// YouTube API
+const YT_API_KEY = "AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE";
+let nextPageToken = null;
+let prevPageToken = null;
+let lastQuery = "";
+
 // --- 工具 ---
 function genGuestName(){ return "訪客" + Math.floor(1000 + Math.random()*9000); }
 function formatTime(sec){
@@ -16,16 +22,13 @@ function formatTime(sec){
 // --- 連線 ---
 function connectHost(){
   if (connected) return;
-  // 讀取表單
   const hostInputEl = document.getElementById("hostIdInput");
   const nameEl = document.getElementById("userName");
   hostId = (hostInputEl && hostInputEl.value) ? hostInputEl.value : "ktv-host";
   myName = (nameEl && nameEl.value) ? nameEl.value : genGuestName();
 
-  // 若已有舊 peer，先銷毀避免重複連線
   if (peer && !peer.destroyed) try { peer.destroy(); } catch(e){ console.warn(e); }
 
-  // ✅ 強制走 WSS，避免 Mixed Content
   peer = new Peer(null, {
     host: "0.peerjs.com",
     port: 443,
@@ -46,22 +49,10 @@ function connectHost(){
       setStatus("❌ 與 Host 斷線");
       clearUI();
     });
-    conn.on("error", err=>{
-      connected = false;
-      setStatus("❌ 連線錯誤");
-      console.error("conn error:", err);
-    });
   });
 
-  // 自動重連
-  peer.on("disconnected", ()=>{
-    console.warn("PeerJS 斷線，嘗試重連...");
-    peer.reconnect();
-  });
-  peer.on("error", err=>{
-    setStatus("❌ PeerJS 錯誤");
-    console.error("peer error:", err);
-  });
+  peer.on("disconnected", ()=> peer.reconnect());
+  peer.on("error", err=> console.error("peer error:", err));
 }
 
 // --- UI 狀態 ---
@@ -70,7 +61,7 @@ function setStatus(text){
   if (el) el.innerText = text;
 }
 
-// --- 送出動作 ---
+// --- 點歌 / 插播 ---
 function sendSong(){
   if(!conn || !conn.open) return;
   const title = document.getElementById("songTitle").value;
@@ -81,12 +72,71 @@ function sendSong(){
   document.getElementById("songVideoId").value="";
 }
 
+function insertSong(title, videoId){
+  if(!conn || !conn.open) return;
+  conn.send({type:"insertNext", pin:"1234", payload:{title, videoId, by:myName}});
+}
+
+// --- 表情回饋 ---
 function sendFeedback(){
   if(!conn || !conn.open) return;
   const emoji = document.getElementById("emojiInput").value || "😀";
   conn.send({type:"feedback", by:myName, emoji});
   document.getElementById("emojiInput").value="";
 }
+
+// --- YouTube 搜尋 ---
+async function searchYouTube(query, pageToken=""){
+  const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=50&type=video&q=${encodeURIComponent(query)}&key=${YT_API_KEY}${pageToken?`&pageToken=${pageToken}`:""}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  nextPageToken = data.nextPageToken || null;
+  prevPageToken = data.prevPageToken || null;
+  lastQuery = query;
+  if(!data.items) return [];
+  return data.items.map(i=>({
+    title: i.snippet.title,
+    videoId: i.id.videoId
+  }));
+}
+
+async function searchSong(pageToken=""){
+  const query = document.getElementById("searchQuery").value.trim() || lastQuery;
+  if(!query) return;
+  document.getElementById("searchResults").innerHTML = "搜尋中...";
+  try{
+    const results = await searchYouTube(query, pageToken);
+    const el = document.getElementById("searchResults");
+    el.innerHTML = "";
+    results.forEach(r=>{
+      const div = document.createElement("div");
+      div.className="listItem";
+      div.innerHTML = `${r.title} 
+        <button class="btnSm">點播</button>
+        <button class="btnSm">插播</button>`;
+      const [btnEnq, btnIns] = div.querySelectorAll("button");
+      btnEnq.onclick = ()=>{
+        if(conn && conn.open){
+          conn.send({type:"enqueue", payload:{title:r.title, videoId:r.videoId, by:myName}});
+          setStatus("🎵 已點播：" + r.title);
+        }
+      };
+      btnIns.onclick = ()=>{
+        if(conn && conn.open){
+          conn.send({type:"insertNext", pin:"1234", payload:{title:r.title, videoId:r.videoId, by:myName}});
+          setStatus("🚨 已插播：" + r.title);
+        }
+      };
+      el.appendChild(div);
+    });
+  }catch(e){
+    console.error("YT 搜尋錯誤", e);
+    document.getElementById("searchResults").innerText = "❌ 搜尋失敗";
+  }
+}
+
+function nextPage(){ if(nextPageToken) searchSong(nextPageToken); }
+function prevPage(){ if(prevPageToken) searchSong(prevPageToken); }
 
 // --- 收訊處理 ---
 function handleMsg(msg){
@@ -106,7 +156,7 @@ function handleMsg(msg){
   }
 }
 
-// --- 渲染 ---
+// --- 渲染 (同之前) ---
 function renderQueue(queue){
   const el=document.getElementById("queue"); if(!el) return;
   el.innerHTML="";
@@ -114,7 +164,6 @@ function renderQueue(queue){
     el.innerHTML+=`<div class="listItem">${q.by? q.by+" 點播 ":""}${q.title}</div>`;
   });
 }
-
 function renderHistory(history){
   const el=document.getElementById("historyList"); if(!el) return;
   el.innerHTML="";
@@ -122,7 +171,6 @@ function renderHistory(history){
     el.innerHTML+=`<div class="listItem">${h.by? h.by+" 點播 ":""}${h.title}</div>`;
   });
 }
-
 function renderWall(wall){
   const el=document.getElementById("wallList"); if(!el) return;
   el.innerHTML="";
@@ -130,7 +178,6 @@ function renderWall(wall){
     el.innerHTML+=`<div class="listItem">${m.by}：${m.emoji}</div>`;
   });
 }
-
 function renderRanking(ranking){
   const el=document.getElementById("rankingList"); if(!el) return;
   const sorted = Object.entries(ranking).sort((a,b)=>b[1]-a[1]).slice(0,50);
@@ -139,32 +186,24 @@ function renderRanking(ranking){
     el.innerHTML+=`<div class="listItem">${i+1}. ${name} ${count} 首</div>`;
   });
 }
-
 function updateProgress(cur,dur){
   const bar=document.getElementById("progressBar");
   const time=document.getElementById("timeInfo");
   if(bar) bar.value = dur? (cur/dur*100):0;
   if(time) time.innerText = formatTime(cur)+" / "+formatTime(dur);
 }
-
 function clearUI(){
-  const q=document.getElementById("queue");
-  const h=document.getElementById("historyList");
-  const w=document.getElementById("wallList");
-  const r=document.getElementById("rankingList");
+  ["queue","historyList","wallList","rankingList"].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.innerHTML="";
+  });
   const bar=document.getElementById("progressBar");
   const time=document.getElementById("timeInfo");
-  if(q) q.innerHTML="";
-  if(h) h.innerHTML="";
-  if(w) w.innerHTML="";
-  if(r) r.innerHTML="";
   if(bar) bar.value=0;
   if(time) time.innerText="0:00 / 0:00";
 }
 
-// --- 事件與自動連線 ---
+// --- 名稱即時同步 & 自動讀取 ?host= ---
 document.addEventListener("DOMContentLoaded", ()=>{
-  // 名稱即時同步
   const nameEl = document.getElementById("userName");
   if(nameEl){
     nameEl.addEventListener("change", ()=>{
@@ -174,7 +213,6 @@ document.addEventListener("DOMContentLoaded", ()=>{
       }
     });
   }
-  // 自動讀取 ?host=
   const params = new URLSearchParams(window.location.search);
   const hostParam = params.get("host");
   if(hostParam){
@@ -184,7 +222,10 @@ document.addEventListener("DOMContentLoaded", ()=>{
   }
 });
 
-// --- 讓 inline onclick 可呼叫 ---
+// --- 匯出到 window ---
 window.connectHost   = connectHost;
 window.sendSong      = sendSong;
 window.sendFeedback  = sendFeedback;
+window.searchSong    = searchSong;
+window.nextPage      = nextPage;
+window.prevPage      = prevPage;
