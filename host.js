@@ -1,6 +1,6 @@
 /* ========= KTV Host Link ========= */
 const IS_HOST = true;
-const ROOM_ID = window.ROOM_ID || "ktv";      // 需要多房就讓 index/host.html 決定
+const ROOM_ID = window.ROOM_ID || "ktv";
 const APP_VERSION = window.APP_VERSION || "0.1";
 
 /* 依你現有程式替換/對接這些函式 */
@@ -10,25 +10,24 @@ function getCurrentTime()  { try { return (window.player?.getCurrentTime?.() ?? 
 function getSettings()     { return window.KTV_SETTINGS || { theme: document.documentElement.dataset.theme || "light" }; }
 function enqueue(item)     { (window.KTV_QUEUE ||= []).push(item); renderQueue?.(); }
 function applyControl(cmd) {
-  // 你原本的控制：play/pause/next/seek 等
   if (cmd?.type === "seek" && Number.isFinite(cmd.seconds)) { try { window.player?.seekTo(cmd.seconds, true); } catch {} }
-  if (cmd?.type === "next") { nextSong?.(); }
+  if (cmd?.type === "next")  { nextSong?.(); }
   if (cmd?.type === "pause") { try { window.player?.pauseVideo?.(); } catch {} }
   if (cmd?.type === "play")  { try { window.player?.playVideo?.(); }  catch {} }
 }
-function setQueue(q) {}     // Host 不用
-function setNowPlaying(n){} // Host 不用
-function seekTo(sec){}      // Host 不用
-function applySettings(s){} // Host 不用
-function renderQueue(){}    // 你的原本渲染
+function setQueue(q) {}
+function setNowPlaying(n){}
+function seekTo(sec){}
+function applySettings(s){}
+function renderQueue(){}
 
-/* ========= 通訊核心，Host/Client 共用邏輯 ========= */
+/* ========= 通訊核心 ========= */
 const PEER_OPTS = {
   debug: 1,
-  config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] } // 保留預設 TURN（若你的 PeerJS 有提供）
+  config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] }
 };
 
-let peer, conns = new Map();               // Host 會有多個 client
+let peer, conns = new Map();
 let hbTimer, reconnTimer, reconnDelay = 500;
 
 function hostPeerId(room){ return `host-${room}`; }
@@ -39,7 +38,7 @@ function initPeer() {
 
   peer.on("open", id => console.log("[KTV] peer open", id));
   peer.on("connection", c => setupConn(c));
-  peer.on("disconnected", tryReconnect);
+  peer.on("disconnected", () => { stopHeartbeatIfIdle(); tryReconnect(); });
   peer.on("error", err => { console.log("[KTV] peer error", err); tryReconnect(); });
 }
 
@@ -87,9 +86,14 @@ function sendTo(c, payload, state, opts={}){
   if (!c?.open) return;
   const msgId = `${nowTs()}-${Math.random().toString(16).slice(2)}`;
   const packet = { ...payload, msgId, ts: nowTs() };
-  try { c.send(packet); } catch{}
+  try { c.send(packet); } catch {}
   if (opts.ack === false) return;
-  const t = setTimeout(() => state?.pending?.delete(msgId), 1500);
+  // 一次重送
+  const t = setTimeout(() => {
+    if (!state?.pending?.has(msgId)) return;
+    try { c.send(packet); } catch {}
+    state.pending.delete(msgId);
+  }, 1500);
   state?.pending?.set(msgId, t);
 }
 
@@ -103,10 +107,13 @@ function onData(c, state, msg){
   if (msg.type === "pong") { state.missed = 0; return; }
   if (msg.ack) { const t = state.pending.get(msg.ack); if (t){ clearTimeout(t); state.pending.delete(msg.ack);} return; }
 
-  // Client → Host 業務
-  if (msg.type === "hello")      sendTo(c, { type:"snapshot", payload: buildSnapshot() }, state, { ack:false });
-  if (msg.type === "enqueue")  { enqueue(msg.payload); broadcastState(); }
-  if (msg.type === "control")  { applyControl(msg.payload); broadcastState(); }
+  // 對業務訊息回 ACK
+  try { c.send({ ack: msg.msgId, ts: nowTs() }); } catch {}
+
+  // Client → Host
+  if (msg.type === "hello")   { sendTo(c, { type:"snapshot", payload: buildSnapshot() }, state, { ack:false }); return; }
+  if (msg.type === "enqueue") { enqueue(msg.payload); broadcastState(); return; }
+  if (msg.type === "control") { applyControl(msg.payload); broadcastState(); return; }
 }
 
 function buildSnapshot(){
@@ -124,9 +131,8 @@ function broadcastState(){
   broadcast("state", s);
 }
 
-/* 讓你在原本流程中手動呼叫，用於點歌或播放狀態變更時 */
 window.KTV_HOST_API = {
-  broadcastState,   // 歌單或進度變更後可呼叫
+  broadcastState,
   notifySnapshot(){ broadcast("snapshot", buildSnapshot()); }
 };
 
