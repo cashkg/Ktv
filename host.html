@@ -1,71 +1,244 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <title>KTV 主機端 (Host)</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>KTV Host</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:16px}
+    header{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    #queue{margin-top:12px}
+    .item{padding:6px 8px;border:1px solid #ddd;border-radius:8px;margin:6px 0}
+    button{padding:8px 12px;border:1px solid #ccc;border-radius:8px;background:#f6f6f6;cursor:pointer}
+    button:active{transform:scale(.98)}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .muted{opacity:.65}
+  </style>
 </head>
-<body>
+<body data-theme="light">
   <header>
-    <h1>KTV 主機端 (Host)</h1>
-    <div><b>Host Peer ID：</b> <span id="peer-id">初始化中...</span></div>
-    <div>PIN 碼：<input id="pinInput" value="1234" size="6"/></div>
-    <div>
-      主題：
-      <select id="themeSelect">
-        <option value="dark">暗色</option>
-        <option value="light">亮色</option>
-        <option value="pink">粉色</option>
-        <option value="festival">節日</option>
-      </select>
-    </div>
-    <div id="status"></div>
-    <div id="networkWarning" class="warning"></div>
-    <nav>
-      <button onclick="switchTab('queue')">播放佇列</button>
-      <button onclick="switchTab('history')">歷史紀錄</button>
-      <button onclick="switchTab('users')">使用者</button>
-      <button onclick="switchTab('ranking')">排行榜</button>
-      <button onclick="switchTab('wall')">訊息牆</button>
-    </nav>
+    <h1 style="margin:0">KTV Host</h1>
+    <span id="ver" class="muted"></span>
+    <span id="conn" class="muted">連線：0</span>
   </header>
 
-  <!-- 固定播放區 -->
-  <section id="playerSection" class="card" style="margin-top:12px;">
-    <h3>現在播放</h3>
-    <div id="nowPlaying">暫無</div>
-    <progress id="progressBar" value="0" max="100" style="width:100%; margin-top:8px;"></progress>
-    <div id="timeInfo">0:00 / 0:00</div>
-    <div id="player" style="margin-top:10px;"></div>
-    <div style="margin-top:10px;">
-      <button class="btnSm" onclick="playVideo()">播放</button>
-      <button class="btnSm" onclick="pauseVideo()">暫停</button>
-      <button class="btnSm" onclick="stopVideo()">停止</button>
-      <button class="btnSm" onclick="playNext()">下一首</button>
-    </div>
-    <div id="latestMsg" class="latest"></div>
-  </section>
+  <div id="player"></div>
 
-  <!-- QRCode 區 -->
-  <section class="card">
-    <h3>連線 QRCode</h3>
-    <canvas id="qrcodeCanvas"></canvas>
-  </section>
-
-  <!-- 子頁面容器 -->
-  <div id="tab-queue" class="card tab" style="display:block;">
-    <h3>播放佇列</h3>
-    <div id="queue" class="list"></div>
+  <div class="row" style="margin-top:12px">
+    <button id="btnPlay">播放</button>
+    <button id="btnPause">暫停</button>
+    <button id="btnNext">下一首</button>
+    <label>跳到秒數 <input id="seekSec" type="number" min="0" value="0" style="width:80px"></label>
+    <button id="btnSeek">Seek</button>
   </div>
-  <div id="tab-history" class="card tab"><h3>歷史紀錄</h3><div id="historyList" class="list"></div></div>
-  <div id="tab-users" class="card tab"><h3>使用者清單</h3><div id="userCount"></div><div id="userList" class="list"></div></div>
-  <div id="tab-ranking" class="card tab"><h3>排行榜</h3><div id="rankingList" class="list"></div></div>
-  <div id="tab-wall" class="card tab"><h3>訊息牆</h3><div id="wallList" class="list"></div></div>
 
-  <!-- 外部資源 -->
-  <script src="https://www.youtube.com/iframe_api"></script>
+  <h3>歌單</h3>
+  <div id="queue"></div>
+
+  <!-- 版本與房號 -->
+  <script>
+    window.ROOM_ID = "ktv";
+    window.APP_VERSION = "0.1.0";
+  </script>
+
+  <!-- PeerJS -->
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
-  <script src="host.js"></script>
+
+  <!-- YouTube IFrame API -->
+  <script>
+    // 基本播放狀態
+    window.KTV_QUEUE = [];
+    window.KTV_NOW = null;
+    window.KTV_SETTINGS = { theme: document.documentElement.dataset.theme || "light" };
+
+    const verEl = document.getElementById('ver');
+    const connEl = document.getElementById('conn');
+    verEl.textContent = `v${window.APP_VERSION}｜房號 ${window.ROOM_ID}`;
+
+    // 建立 YT Player
+    let player, ytReady = false;
+    function onYouTubeIframeAPIReady(){
+      player = new YT.Player('player', {
+        width: 640, height: 360,
+        videoId: '',
+        playerVars:{autoplay:0,controls:1,rel:0},
+        events:{
+          onReady(){ ytReady = true; },
+          onStateChange(){ window.KTV_HOST_API?.broadcastState(); }
+        }
+      });
+      window.player = player;
+    }
+    (function addYT(){const s=document.createElement('script');s.src="https://www.youtube.com/iframe_api";document.head.appendChild(s);}());
+  </script>
+
+  <!-- Host 通訊與邏輯 -->
+  <script>
+  /* ========= KTV Host Link ========= */
+  const IS_HOST = true;
+  const ROOM_ID = window.ROOM_ID || "ktv";
+  const APP_VERSION = window.APP_VERSION || "0.1";
+
+  function getQueue()        { return window.KTV_QUEUE || []; }
+  function getNowPlaying()   { return window.KTV_NOW   || null; }
+  function getCurrentTime()  { try { return (window.player?.getCurrentTime?.() ?? 0) | 0; } catch { return 0; } }
+  function getSettings()     { return window.KTV_SETTINGS || { theme: document.documentElement.dataset.theme || "light" }; }
+  function enqueue(item)     { (window.KTV_QUEUE ||= []).push(item); if(!window.KTV_NOW) startFirst(); renderQueue(); }
+  function applyControl(cmd) {
+    if (cmd?.type === "seek" && Number.isFinite(cmd.seconds)) { try { window.player?.seekTo(cmd.seconds, true); } catch {} }
+    if (cmd?.type === "next")  { nextSong(); }
+    if (cmd?.type === "pause") { try { window.player?.pauseVideo?.(); } catch {} }
+    if (cmd?.type === "play")  { try { window.player?.playVideo?.(); }  catch {} }
+  }
+  function setQueue(q) {}
+  function setNowPlaying(n){}
+  function seekTo(sec){}
+  function applySettings(s){}
+
+  function startFirst(){
+    if(!ytReady) return;
+    const n = getQueue()[0];
+    if(!n) return;
+    window.KTV_NOW = n;
+    try { player.loadVideoById(n.ytId); } catch {}
+  }
+  function nextSong(){
+    const q = getQueue();
+    if (!q.length) return;
+    q.shift();
+    window.KTV_NOW = q[0] || null;
+    if (window.KTV_NOW && ytReady) { try { player.loadVideoById(window.KTV_NOW.ytId); } catch {} }
+    renderQueue();
+  }
+  function renderQueue(){
+    const box = document.getElementById('queue');
+    const q = getQueue();
+    box.innerHTML = q.map((it,i)=>`<div class="item">${i===0? "▶️ " : ""}${it.title || it.ytId || "未命名"}</div>`).join("") || '<div class="muted">空</div>';
+    document.title = `KTV Host (${q.length})`;
+  }
+
+  /* ========= 通訊核心 ========= */
+  const PEER_OPTS = {
+    debug: 1,
+    config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] }
+  };
+
+  let peer, conns = new Map();
+  let hbTimer, reconnTimer, reconnDelay = 500;
+
+  function hostPeerId(room){ return `host-${room}`; }
+  function nowTs(){ return Date.now(); }
+
+  function initPeer() {
+    peer = new Peer(hostPeerId(ROOM_ID), PEER_OPTS);
+
+    peer.on("open", id => console.log("[KTV] peer open", id));
+    peer.on("connection", c => setupConn(c));
+    peer.on("disconnected", tryReconnect);
+    peer.on("error", err => { console.log("[KTV] peer error", err); tryReconnect(); });
+  }
+
+  function tryReconnect(){
+    if (reconnTimer) return;
+    reconnTimer = setTimeout(() => {
+      reconnTimer = null;
+      if (peer?.disconnected) peer.reconnect();
+      reconnDelay = Math.min(reconnDelay * 2, 10000);
+    }, reconnDelay);
+  }
+
+  function setupConn(c){
+    const state = { missed: 0, pending: new Map() };
+    conns.set(c, state);
+    connEl.textContent = `連線：${conns.size}`;
+
+    c.on("open", () => {
+      console.log("[KTV] conn open", c.peer);
+      state.missed = 0;
+      reconnDelay = 500;
+      sendTo(c, { type:"snapshot", payload: buildSnapshot() }, state, { ack:false });
+      startHeartbeat();
+    });
+
+    c.on("data", msg => onData(c, state, msg));
+    c.on("close", () => { conns.delete(c); connEl.textContent = `連線：${conns.size}`; stopHeartbeatIfIdle(); });
+    c.on("error", () => { conns.delete(c); connEl.textContent = `連線：${conns.size}`; stopHeartbeatIfIdle(); });
+  }
+
+  function startHeartbeat(){
+    if (hbTimer) return;
+    hbTimer = setInterval(() => {
+      for (const [c, s] of conns) {
+        if (!c.open) continue;
+        s.missed++;
+        if (s.missed > 3) { try { c.close(); } catch{} conns.delete(c); continue; }
+        sendTo(c, { type:"ping", ts: nowTs() }, s, { ack:false });
+      }
+      connEl.textContent = `連線：${conns.size}`;
+      if (conns.size === 0) stopHeartbeatIfIdle();
+    }, 2000);
+  }
+  function stopHeartbeatIfIdle(){ if (conns.size === 0) { clearInterval(hbTimer); hbTimer = null; } }
+
+  function sendTo(c, payload, state, opts={}){
+    if (!c?.open) return;
+    const msgId = `${nowTs()}-${Math.random().toString(16).slice(2)}`;
+    const packet = { ...payload, msgId, ts: nowTs() };
+    try { c.send(packet); } catch{}
+    if (opts.ack === false) return;
+    const t = setTimeout(() => state?.pending?.delete(msgId), 1500);
+    state?.pending?.set(msgId, t);
+  }
+
+  function broadcast(type, payload){
+    for (const [c, s] of conns) sendTo(c, { type, payload }, s);
+  }
+
+  function onData(c, state, msg){
+    if (!msg) return;
+    if (msg.type === "ping") { sendTo(c, { type:"pong", ts: msg.ts }, state, { ack:false }); return; }
+    if (msg.type === "pong") { state.missed = 0; return; }
+    if (msg.ack) { const t = state.pending.get(msg.ack); if (t){ clearTimeout(t); state.pending.delete(msg.ack);} return; }
+
+    // Client → Host
+    if (msg.type === "hello")      sendTo(c, { type:"snapshot", payload: buildSnapshot() }, state, { ack:false });
+    if (msg.type === "enqueue")  { enqueue(msg.payload); broadcastState(); }
+    if (msg.type === "control")  { applyControl(msg.payload); broadcastState(); }
+  }
+
+  function buildSnapshot(){
+    return {
+      version: APP_VERSION,
+      queue: getQueue(),
+      now: getNowPlaying(),
+      progress: getCurrentTime(),
+      settings: getSettings()
+    };
+  }
+
+  function broadcastState(){
+    const s = { queue: getQueue(), now: getNowPlaying(), progress: getCurrentTime() };
+    broadcast("state", s);
+  }
+
+  window.KTV_HOST_API = {
+    broadcastState,
+    notifySnapshot(){ broadcast("snapshot", buildSnapshot()); }
+  };
+
+  // UI 綁定
+  document.getElementById('btnPlay').onclick = ()=>applyControl({type:'play'});
+  document.getElementById('btnPause').onclick= ()=>applyControl({type:'pause'});
+  document.getElementById('btnNext').onclick = ()=>applyControl({type:'next'});
+  document.getElementById('btnSeek').onclick = ()=>{
+    const s = Number(document.getElementById('seekSec').value||0);
+    applyControl({type:'seek',seconds:s});
+  };
+
+  // 每 5 秒廣播一次狀態，避免漏包
+  setInterval(()=>window.KTV_HOST_API.broadcastState(), 5000);
+
+  initPeer();
+  </script>
 </body>
 </html>
