@@ -1,58 +1,216 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <title>KTV 點歌端 (Controller)</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>KTV Controller</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:16px}
+    header{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    input,button{padding:8px 12px;border:1px solid #ccc;border-radius:8px}
+    button{background:#f6f6f6;cursor:pointer}
+    .row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+    .item{padding:6px 8px;border:1px solid #ddd;border-radius:8px;margin:6px 0}
+    .muted{opacity:.65}
+  </style>
 </head>
-<body data-theme="light"> <!-- 預設淺色護眼主題 -->
+<body data-theme="light">
   <header>
-    <h1>KTV 點歌端 (Controller)</h1>
-    <div id="connStatus">尚未連線</div>
+    <h1 style="margin:0">KTV Controller</h1>
+    <span id="ver" class="muted"></span>
+    <span id="status" class="muted">狀態：連線中</span>
   </header>
 
-  <!-- 🔍 YouTube 搜尋區 -->
-  <section class="card">
-    <h3>搜尋 YouTube 歌曲</h3>
-    <input id="searchQuery" placeholder="輸入歌曲關鍵字"/>
-    <button onclick="searchSong()">搜尋</button>
-    <div id="searchResults" class="list"></div>
-    <div style="margin-top:8px;">
-      <button onclick="prevPage()">上一頁</button>
-      <button onclick="nextPage()">下一頁</button>
-    </div>
+  <section class="row">
+    <input id="ytId" placeholder="輸入 YouTube 影片ID 或連結" style="flex:1;min-width:220px">
+    <input id="title" placeholder="顯示標題" style="flex:1;min-width:180px">
+    <button id="btnAdd">加入歌單</button>
   </section>
 
-  <!-- 手動輸入歌曲 -->
-  <section class="card">
-    <h3>手動輸入歌曲</h3>
-    <div>
-      <input id="songTitle" placeholder="歌曲名稱"/>
-      <input id="songVideoId" placeholder="YouTube 影片 ID"/>
-      <button onclick="sendSong()">送出</button>
-    </div>
+  <section class="row">
+    <button id="cPlay">播放</button>
+    <button id="cPause">暫停</button>
+    <button id="cNext">下一首</button>
+    <label>跳到秒數 <input id="seekSec" type="number" min="0" value="0" style="width:80px"></label>
+    <button id="cSeek">Seek</button>
   </section>
 
-  <!-- 其他功能 -->
-  <section class="card"><h3>播放佇列</h3><div id="queue" class="list"></div></section>
-  <section class="card"><h3>歷史紀錄</h3><div id="historyList" class="list"></div></section>
-  <section class="card">
-    <h3>訊息牆</h3>
-    <div id="wallList" class="list"></div>
-    <div style="margin-top:8px;">
-      <input id="emojiInput" placeholder="😀" maxlength="2"/>
-      <button onclick="sendFeedback()">送出表情</button>
-    </div>
-  </section>
-  <section class="card"><h3>排行榜</h3><div id="rankingList" class="list"></div></section>
-  <section class="card">
-    <h3>進度</h3>
-    <progress id="progressBar" value="0" max="100" style="width:100%;"></progress>
-    <div id="timeInfo">0:00 / 0:00</div>
-  </section>
+  <h3>目前播放</h3>
+  <div id="now" class="item muted">尚未播放</div>
 
-  <!-- 外部資源 -->
+  <h3>歌單</h3>
+  <div id="queue"></div>
+
+  <!-- 版本與房號 -->
+  <script>
+    window.ROOM_ID = "ktv";
+    window.APP_VERSION = "0.1.0";
+  </script>
+
+  <!-- PeerJS -->
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-  <script src="controller.js"></script>
+
+  <!-- 可選：本機也嵌播放器做進度校正（非必要，可移除） -->
+  <div id="player" style="display:none"></div>
+  <script>
+    let player, ytReady=false;
+    function onYouTubeIframeAPIReady(){
+      player = new YT.Player('player',{width:320,height:180,videoId:'',playerVars:{controls:0,rel:0},events:{onReady(){ytReady=true;}}});
+      window.player = player;
+    }
+    (function addYT(){const s=document.createElement('script');s.src="https://www.youtube.com/iframe_api";document.head.appendChild(s);}());
+  </script>
+
+  <!-- Controller 通訊 -->
+  <script type="module">
+  /* ========= KTV Controller Link ========= */
+  const IS_HOST = false;
+  const ROOM_ID = window.ROOM_ID || "ktv";
+  const APP_VERSION = window.APP_VERSION || "0.1";
+
+  const verEl = document.getElementById('ver');
+  const statusEl = document.getElementById('status');
+  verEl.textContent = `v${APP_VERSION}｜房號 ${ROOM_ID}`;
+
+  function setQueue(q){ window.KTV_QUEUE = Array.isArray(q)? q : []; renderQueue(); }
+  function setNowPlaying(n){ window.KTV_NOW = n || null; renderNow(n); }
+  function getCurrentTime(){ try { return (window.player?.getCurrentTime?.() ?? 0) | 0; } catch { return 0; } }
+  function seekTo(sec){ try { if (Math.abs(getCurrentTime() - sec) > 2) window.player?.seekTo?.(sec, true); } catch {} }
+  function applySettings(s){ if (!s) return; try { document.documentElement.dataset.theme = s.theme || "light"; } catch {} }
+  function renderQueue(){
+    const box = document.getElementById('queue');
+    const q = window.KTV_QUEUE || [];
+    box.innerHTML = q.map((it,i)=>`<div class="item">${i===0? "▶️ " : ""}${it.title || it.ytId || "未命名"}</div>`).join("") || '<div class="muted">空</div>';
+  }
+  function renderNow(n){
+    const el = document.getElementById('now');
+    el.textContent = n ? `${n.title || n.ytId}` : '尚未播放';
+  }
+
+  export function ktvEnqueue(item){ send({ type:"enqueue", payload:item }); }
+  export function ktvControl(cmd){  send({ type:"control", payload:cmd });  }
+
+  /* ========= 通訊核心（Client） ========= */
+  const PEER_OPTS = {
+    debug: 1,
+    config: { iceServers: [{ urls:"stun:stun.l.google.com:19302" }] }
+  };
+
+  let peer, conn, hbTimer, missed = 0, reconnTimer, reconnDelay = 500;
+  const pending = new Map();
+
+  function hostPeerId(room){ return `host-${room}`; }
+  function clientPeerId(room){ return `client-${room}-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
+  function nowTs(){ return Date.now(); }
+
+  function initPeer(){
+    peer = new Peer(clientPeerId(ROOM_ID), PEER_OPTS);
+
+    peer.on("open", () => connectToHost());
+    peer.on("disconnected", tryReconnect);
+    peer.on("error", err => { console.log("[KTV] peer error", err); tryReconnect(); });
+  }
+
+  function connectToHost(){
+    if (conn?.open) return;
+    statusEl.textContent = "狀態：連線中…";
+    conn = peer.connect(hostPeerId(ROOM_ID), { reliable: true });
+    setupConn(conn);
+  }
+
+  function setupConn(c){
+    c.on("open", () => {
+      console.log("[KTV] conn open");
+      statusEl.textContent = "狀態：已連線";
+      missed = 0;
+      clearTimeout(reconnTimer);
+      reconnDelay = 500;
+      startHeartbeat();
+      send({ type:"hello" }, { ack:false }); // 索取快照
+    });
+    c.on("data", onData);
+    c.on("close", () => { stopHeartbeat(); statusEl.textContent = "狀態：斷線，重試中…"; tryReconnect(); });
+    c.on("error", () => { stopHeartbeat(); statusEl.textContent = "狀態：錯誤，重試中…"; tryReconnect(); });
+  }
+
+  function startHeartbeat(){
+    stopHeartbeat();
+    hbTimer = setInterval(() => {
+      if (!conn?.open) return;
+      missed++;
+      if (missed > 3) { try { conn.close(); } catch{} tryReconnect(); return; }
+      send({ type:"ping", ts: nowTs() }, { ack:false });
+    }, 2000);
+  }
+  function stopHeartbeat(){ clearInterval(hbTimer); hbTimer = null; missed = 0; }
+
+  function tryReconnect(){
+    if (reconnTimer) return;
+    reconnTimer = setTimeout(() => {
+      reconnTimer = null;
+      if (peer?.disconnected) peer.reconnect();
+      connectToHost();
+      reconnDelay = Math.min(reconnDelay * 2, 10000);
+    }, reconnDelay);
+  }
+
+  function onData(msg){
+    if (!msg) return;
+    if (msg.type === "ping") { send({ type:"pong", ts: msg.ts }, { ack:false }); return; }
+    if (msg.type === "pong") { missed = 0; return; }
+    if (msg.ack) { const t = pending.get(msg.ack); if (t){ clearTimeout(t); pending.delete(msg.ack);} return; }
+
+    if (msg.type === "snapshot") { applySnapshot(msg.payload); return; }
+    if (msg.type === "state")    { applyState(msg.payload);   return; }
+  }
+
+  function applySnapshot(s){
+    if (!s) return;
+    setQueue(s.queue);
+    setNowPlaying(s.now);
+    applySettings(s.settings);
+    if (Number.isFinite(s.progress)) seekTo(s.progress);
+  }
+
+  function applyState(s){
+    if (!s) return;
+    setQueue(s.queue);
+    setNowPlaying(s.now);
+    if (Number.isFinite(s.progress)) seekTo(s.progress);
+  }
+
+  function send(payload, opts={}){
+    if (!conn?.open) return;
+    const msgId = `${nowTs()}-${Math.random().toString(16).slice(2)}`;
+    const packet = { ...payload, msgId, ts: nowTs() };
+    try { conn.send(packet); } catch{}
+    if (opts.ack === false) return;
+    const t = setTimeout(() => pending.delete(msgId), 1500);
+    pending.set(msgId, t);
+  }
+
+  // UI 綁定
+  const ytIdEl = document.getElementById('ytId');
+  const titleEl = document.getElementById('title');
+  document.getElementById('btnAdd').onclick = ()=>{
+    const raw = (ytIdEl.value || "").trim();
+    if (!raw) return;
+    // 支援整支連結或純 ID
+    const m = raw.match(/(?:v=|youtu\.be\/|embed\/)?([A-Za-z0-9_-]{6,})/);
+    const ytId = m ? m[1] : raw;
+    const title = (titleEl.value || ytId);
+    ktvEnqueue({ ytId, title });
+    ytIdEl.value = ""; titleEl.value = "";
+  };
+  document.getElementById('cPlay').onclick = ()=>ktvControl({type:'play'});
+  document.getElementById('cPause').onclick= ()=>ktvControl({type:'pause'});
+  document.getElementById('cNext').onclick = ()=>ktvControl({type:'next'});
+  document.getElementById('cSeek').onclick = ()=>{
+    const s = Number(document.getElementById('seekSec').value||0);
+    ktvControl({type:'seek',seconds:s});
+  };
+
+  initPeer();
+  </script>
 </body>
 </html>
