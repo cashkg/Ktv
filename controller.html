@@ -25,11 +25,10 @@
     .pill{padding:2px 8px;border:1px solid #ddd;border-radius:999px;background:#fafafa;font-size:12px;color:#666}
   </style>
   <script>
-    // 供頁面設定
     window.ROOM_ID = window.ROOM_ID || "ktv";
     window.APP_VERSION = window.APP_VERSION || "0.2";
-    // 你的 YouTube API Key（也可改成從外部 <script> 設定 window.YT_API_KEY）
-    window.YT_API_KEY = window.YT_API_KEY || "";
+    // 已內嵌你的金鑰
+    window.YT_API_KEY = "AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE";
   </script>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="controller.js"></script>
@@ -52,7 +51,6 @@
     <button data-tab="t-rank">KTV 排行榜</button>
   </nav>
 
-  <!-- 搜尋 -->
   <section id="t-search" class="tab active">
     <div class="kv">
       <input id="q" type="text" placeholder="輸入歌名或歌手" />
@@ -61,21 +59,16 @@
     <div id="results" class="list"></div>
   </section>
 
-  <!-- 歷史 -->
   <section id="t-history" class="tab">
     <div id="histList" class="list"></div>
   </section>
 
-  <!-- 排行榜：用 iframe 顯示各大 KTV 官網榜單 -->
   <section id="t-rank" class="tab">
     <div class="kv">
       <select id="rankSel">
         <option value="">請選擇排行榜頁面</option>
-        <!-- 你可把常用官網網址填進來 -->
         <option value="https://www.youtube.com/feed/music">YouTube 音樂熱門</option>
         <option value="https://charts.youtube.com/charts/TopSongs/tw">YouTube 排行</option>
-        <!-- <option value="https://www.partyworld.com.tw/xxx">錢櫃排行榜</option> -->
-        <!-- <option value="https://www.holiday.com.tw/xxx">好樂迪排行榜</option> -->
       </select>
       <button id="openRank">開啟</button>
     </div>
@@ -85,7 +78,6 @@
   </section>
 
   <script>
-    // ===== 暱稱：麻將花色隨機 + 可修改，空白恢復預設 =====
     const NICKS = ["東風","南風","西風","北風","紅中","發財","白板","春","夏","秋","冬","梅","蘭","竹","菊"];
     function genNick(){ return NICKS[(Math.random()*NICKS.length)|0] + "-" + (100+((Math.random()*900)|0)); }
     const nickInput = document.getElementById('nick');
@@ -93,7 +85,7 @@
     function loadNick(){
       const saved = localStorage.getItem('ktv_nick');
       const base = saved && saved.trim() ? saved.trim() : genNick();
-      localStorage.setItem('ktv_nick_base', base); // 保留原始麻將暱稱
+      localStorage.setItem('ktv_nick_base', base);
       nickInput.value = saved ?? base;
     }
     function getNick(){
@@ -104,7 +96,6 @@
     }
     saveNickBtn.onclick = () => { const n=getNick(); localStorage.setItem('ktv_nick', n); };
 
-    // ===== 子頁籤 =====
     document.querySelectorAll('.tabs button').forEach(btn=>{
       btn.onclick = ()=>{
         document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
@@ -114,7 +105,6 @@
       };
     });
 
-    // ===== 搜尋（YouTube Data API v3）=====
     const q = document.getElementById('q');
     const btnSearch = document.getElementById('btnSearch');
     const results = document.getElementById('results');
@@ -170,14 +160,13 @@
       });
     }
 
-    // ===== 重複點歌檢查 =====
     function isDuplicate(videoId){
       const now = (window.KTV_NOW?.id)||"";
       if (now === videoId) return true;
       const q = Array.isArray(window.KTV_QUEUE)? window.KTV_QUEUE : [];
       if (q.some(x=>x?.id===videoId)) return true;
       const h = Array.isArray(window.KTV_HISTORY)? window.KTV_HISTORY : [];
-      if (h.slice(-10).some(x=>x?.id===videoId)) return true; // 近10筆
+      if (h.slice(-10).some(x=>x?.id===videoId)) return true;
       return false;
     }
     function tryEnqueue(item, type="enqueue", needPin=false){
@@ -191,12 +180,11 @@
       else window.ktvEnqueue(sendItem);
     }
 
-    // ===== 歷史渲染（controller.js 會呼叫 renderHistory? 若無則在此提供） =====
     window.renderHistory = function(){
       const box = document.getElementById('histList');
       const hist = Array.isArray(window.KTV_HISTORY)? window.KTV_HISTORY : [];
       box.innerHTML = "";
-      hist.slice().reverse().forEach((it, i)=>{
+      hist.slice().reverse().forEach((it)=>{
         const row = document.createElement('div');
         row.className = "row";
         row.innerHTML = `<div class="leftBtns"></div>
@@ -206,14 +194,12 @@
       });
     };
 
-    // ===== 排行榜 iframe =====
     document.getElementById('openRank').onclick = ()=>{
       const url = document.getElementById('rankSel').value;
       if (!url) return;
       document.getElementById('rankFrame').src = url;
     };
 
-    // ===== 初始化 =====
     document.getElementById('room-pill').textContent = window.ROOM_ID;
     document.getElementById('ver-pill').textContent = window.APP_VERSION;
     loadNick();
