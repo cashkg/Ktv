@@ -8,20 +8,22 @@
   <style>
     body{font-family:system-ui,Segoe UI,Arial;margin:0}
     header{position:sticky;top:0;background:#fff;z-index:5;border-bottom:1px solid #eee;padding:8px}
-    .top{display:grid;grid-template-columns:1fr 220px;gap:12px;align-items:start}
+    .top{display:grid;grid-template-columns:1fr 260px;gap:12px;align-items:start}
     .playerBox,.sfxBox{background:#000;aspect-ratio:16/9;border-radius:8px;overflow:hidden}
     .tabs{display:flex;gap:8px;padding:8px}
     .tabs button{padding:6px 10px;border:1px solid #ccc;background:#f6f6f6;cursor:pointer}
     .tabs button.active{background:#e6f0ff;border-color:#8ab4ff}
     .tab{display:none;padding:8px} .tab.active{display:block}
-    .queueRow{display:grid;grid-template-columns:42px 1fr 220px;gap:8px;align-items:center;border-bottom:1px solid #eee;padding:8px}
+    .queueRow{display:grid;grid-template-columns:42px 1fr 260px;gap:8px;align-items:center;border-bottom:1px solid #eee;padding:8px}
     .queueRow .idx{font-weight:600;text-align:center}
     .queueRow .ops button{margin:0 4px 4px 0;padding:6px;border:1px solid #bbb;background:#fff;cursor:pointer}
     .pill{padding:2px 8px;border:1px solid #ddd;border-radius:999px;background:#fafafa;font-size:12px;color:#666}
+    .userRow{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eee;padding:8px}
+    .dot{display:inline-block;width:8px;height:8px;border-radius:50%;}
   </style>
   <script>
     window.ROOM_ID = window.ROOM_ID || "ktv";
-    window.APP_VERSION = window.APP_VERSION || "0.2";
+    window.APP_VERSION = window.APP_VERSION || "0.3";
     window.PIN_CODE = window.PIN_CODE || "1234";
     window.BGM_LIST = window.BGM_LIST || [
       { id:"5qap5aO4i9A", title:"LoFi BGM 1" },
@@ -35,9 +37,7 @@
 <body>
   <header>
     <div class="top">
-      <div class="playerBox">
-        <div id="player"></div>
-      </div>
+      <div class="playerBox"><div id="player"></div></div>
       <div>
         <div class="sfxBox"><div id="sfx-player"></div></div>
         <div style="margin-top:6px">
@@ -45,9 +45,7 @@
           <span class="pill">房號：<b id="room-pill"></b></span>
           <span class="pill">版本：<b id="ver-pill"></b></span>
         </div>
-        <div style="margin-top:6px">
-          目前播放：<span id="nowTitle">(尚無)</span>
-        </div>
+        <div style="margin-top:6px">目前播放：<span id="nowTitle">(尚無)</span></div>
       </div>
     </div>
   </header>
@@ -55,6 +53,7 @@
   <nav class="tabs">
     <button data-tab="t-queue" class="active">待播清單</button>
     <button data-tab="t-history">歷史紀錄</button>
+    <button data-tab="t-users">線上使用者</button>
   </nav>
 
   <section id="t-queue" class="tab active">
@@ -65,8 +64,12 @@
     <div id="histList"></div>
   </section>
 
+  <section id="t-users" class="tab">
+    <div id="userList"></div>
+  </section>
+
   <script>
-    // ===== 子頁籤 =====
+    // 子頁籤
     document.querySelectorAll('.tabs button').forEach(btn=>{
       btn.onclick = ()=>{
         document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
@@ -76,7 +79,7 @@
       };
     });
 
-    // ===== YouTube IFrame API =====
+    // YouTube IFrame API
     let player, sfxPlayer;
     window.onYouTubeIframeAPIReady = function(){
       player = new YT.Player('player', {
@@ -92,12 +95,11 @@
         playerVars:{ autoplay:0, controls:0, rel:0 },
         events:{ onReady:()=>{} }
       });
-      // 掛到全域，供 host.js 取用
       window.player = player;
       window.sfxPlayer = sfxPlayer;
     };
 
-    // ===== 渲染（供 host.js 呼叫的同名函式）=====
+    // 渲染（供 host.js 呼叫）
     window.renderQueue = function(){
       const list = Array.isArray(window.KTV_QUEUE)? window.KTV_QUEUE : [];
       const box = document.getElementById('queueList'); box.innerHTML = "";
@@ -138,8 +140,22 @@
         box.append(row);
       });
     };
+    window.renderPresence = function(map){
+      const box = document.getElementById('userList'); box.innerHTML = "";
+      const rows = Array.from(map.values()).sort((a,b)=>a.nick.localeCompare(b.nick));
+      const now = Date.now();
+      rows.forEach(u=>{
+        const age = Math.max(0, Math.floor((now - u.lastSeen)/1000));
+        const alive = age <= 8; // 8秒內視為在線
+        const dot = `<span class="dot" style="background:${alive?'#22c55e':'#bbb'}"></span>`;
+        const li = document.createElement('div');
+        li.className = "userRow";
+        li.innerHTML = `<div>${dot} <b>${u.nick}</b> <span class="pill">${u.id}</span></div><div style="color:#666;font-size:12px">${age}s</div>`;
+        box.append(li);
+      });
+    };
 
-    // ===== 本地佇列操作（不經 Controller）=====
+    // 本地佇列操作
     function moveUp(i){
       const a = window.KTV_QUEUE; if (!Array.isArray(a) || i<=0) return;
       [a[i-1], a[i]] = [a[i], a[i-1]];
@@ -162,7 +178,6 @@
       renderQueue(); KTV_HOST_API.broadcastState();
     }
 
-    // ===== 初始化 =====
     document.getElementById('room-pill').textContent = window.ROOM_ID;
     document.getElementById('ver-pill').textContent = window.APP_VERSION;
   </script>
