@@ -26,9 +26,8 @@
   </style>
   <script>
     window.ROOM_ID = window.ROOM_ID || "ktv";
-    window.APP_VERSION = window.APP_VERSION || "0.2";
-    // 已內嵌你的金鑰
-    window.YT_API_KEY = "AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE";
+    window.APP_VERSION = window.APP_VERSION || "0.3";
+    window.YT_API_KEY = "AIzaSyBOdPgWJQOZ1fswTgJRxA2RB3Awf_GrdAE";  // 你的 API Key
   </script>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="controller.js"></script>
@@ -51,6 +50,7 @@
     <button data-tab="t-rank">KTV 排行榜</button>
   </nav>
 
+  <!-- 搜尋頁 -->
   <section id="t-search" class="tab active">
     <div class="kv">
       <input id="q" type="text" placeholder="輸入歌名或歌手" />
@@ -59,10 +59,12 @@
     <div id="results" class="list"></div>
   </section>
 
+  <!-- 歷史頁 -->
   <section id="t-history" class="tab">
     <div id="histList" class="list"></div>
   </section>
 
+  <!-- 排行榜頁 -->
   <section id="t-rank" class="tab">
     <div class="kv">
       <select id="rankSel">
@@ -78,6 +80,7 @@
   </section>
 
   <script>
+    /* === 暱稱系統：麻將花色隨機 + 可自訂 === */
     const NICKS = ["東風","南風","西風","北風","紅中","發財","白板","春","夏","秋","冬","梅","蘭","竹","菊"];
     function genNick(){ return NICKS[(Math.random()*NICKS.length)|0] + "-" + (100+((Math.random()*900)|0)); }
     const nickInput = document.getElementById('nick');
@@ -91,13 +94,14 @@
     function getNick(){
       const base = localStorage.getItem('ktv_nick_base') || genNick();
       const cur = (nickInput.value||"").trim();
-      if (!cur) { nickInput.value = base; localStorage.setItem('ktv_nick', base); return base; }
+      if (!cur){ nickInput.value=base; localStorage.setItem('ktv_nick',base); return base; }
       return cur;
     }
-    saveNickBtn.onclick = () => { const n=getNick(); localStorage.setItem('ktv_nick', n); };
+    saveNickBtn.onclick = ()=>{ const n=getNick(); localStorage.setItem('ktv_nick',n); };
 
+    /* === 子頁籤切換 === */
     document.querySelectorAll('.tabs button').forEach(btn=>{
-      btn.onclick = ()=>{
+      btn.onclick=()=>{
         document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
         document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
         btn.classList.add('active');
@@ -105,103 +109,101 @@
       };
     });
 
-    const q = document.getElementById('q');
-    const btnSearch = document.getElementById('btnSearch');
-    const results = document.getElementById('results');
+    /* === YouTube 搜尋 === */
+    const q=document.getElementById('q');
+    const btnSearch=document.getElementById('btnSearch');
+    const results=document.getElementById('results');
 
     async function searchYT(){
-      const key = window.YT_API_KEY;
-      if (!key){ alert("尚未設定 YouTube API Key"); return; }
-      const query = (q.value||"").trim();
-      if (!query) return;
-      results.innerHTML = "搜尋中…";
+      const key=window.YT_API_KEY;
+      const query=(q.value||"").trim();
+      if(!key){ alert("尚未設定 YouTube API Key"); return; }
+      if(!query) return;
+      results.textContent="搜尋中…";
       try{
-        const url = new URL("https://www.googleapis.com/youtube/v3/search");
+        const url=new URL("https://www.googleapis.com/youtube/v3/search");
         url.searchParams.set("part","snippet");
         url.searchParams.set("maxResults","25");
-        url.searchParams.set("q", query);
+        url.searchParams.set("q",query);
         url.searchParams.set("type","video");
-        url.searchParams.set("key", key);
-        const r = await fetch(url);
-        const j = await r.json();
-        if (!Array.isArray(j.items)){ results.textContent="無結果"; return; }
+        url.searchParams.set("key",key);
+        const r=await fetch(url);
+        const j=await r.json();
+        if(!Array.isArray(j.items)){ results.textContent="無結果"; return; }
         renderResults(j.items.map(it=>({
-          id: it.id.videoId,
-          title: it.snippet.title,
-          thumb: it.snippet.thumbnails?.medium?.url || it.snippet.thumbnails?.default?.url || "",
+          id:it.id.videoId,
+          title:it.snippet.title,
+          thumb:it.snippet.thumbnails?.medium?.url || it.snippet.thumbnails?.default?.url || ""
         })));
-      }catch(e){
-        console.error(e); results.textContent="搜尋失敗";
-      }
+      }catch(e){ console.error(e); results.textContent="搜尋失敗"; }
     }
-    btnSearch.onclick = searchYT;
+    btnSearch.onclick=searchYT;
 
     function renderResults(list){
-      results.innerHTML = "";
+      results.innerHTML="";
       list.forEach(item=>{
-        const row = document.createElement('div');
-        row.className = "row";
-        const btns = document.createElement('div');
-        btns.className = "leftBtns";
-        const bInsert = document.createElement('button'); bInsert.textContent = "插播";
-        const bAdd = document.createElement('button'); bAdd.textContent = "加入";
+        const row=document.createElement('div');
+        row.className="row";
+        const btns=document.createElement('div');
+        btns.className="leftBtns";
+        const bInsert=document.createElement('button'); bInsert.textContent="插播";
+        const bAdd=document.createElement('button'); bAdd.textContent="加入";
         btns.append(bInsert,bAdd);
-
-        const info = document.createElement('div');
-        info.className = "result";
-        info.innerHTML = `<img src="${item.thumb}" alt=""><div><div>${item.title}</div><div style="font-size:12px;color:#666">ID: ${item.id}</div></div>`;
-
-        row.append(btns, info);
+        const info=document.createElement('div');
+        info.className="result";
+        info.innerHTML=`<img src="${item.thumb}" alt=""><div><div>${item.title}</div><div style="font-size:12px;color:#666">ID: ${item.id}</div></div>`;
+        row.append(btns,info);
         results.append(row);
-
-        const payload = { id:item.id, title:item.title, thumb:item.thumb, requester:getNick() };
-        bAdd.onclick    = () => tryEnqueue(payload, "enqueue");
-        bInsert.onclick = () => tryEnqueue(payload, "insertNext", true);
+        const payload={id:item.id,title:item.title,thumb:item.thumb,requester:getNick()};
+        bAdd.onclick=()=>tryEnqueue(payload,"enqueue");
+        bInsert.onclick=()=>tryEnqueue(payload,"insertNext",true);
       });
     }
 
+    /* === 重複點歌確認 === */
     function isDuplicate(videoId){
-      const now = (window.KTV_NOW?.id)||"";
-      if (now === videoId) return true;
-      const q = Array.isArray(window.KTV_QUEUE)? window.KTV_QUEUE : [];
-      if (q.some(x=>x?.id===videoId)) return true;
-      const h = Array.isArray(window.KTV_HISTORY)? window.KTV_HISTORY : [];
-      if (h.slice(-10).some(x=>x?.id===videoId)) return true;
+      const now=(window.KTV_NOW?.id)||"";
+      if(now===videoId) return true;
+      const q=Array.isArray(window.KTV_QUEUE)?window.KTV_QUEUE:[];
+      if(q.some(x=>x?.id===videoId)) return true;
+      const h=Array.isArray(window.KTV_HISTORY)?window.KTV_HISTORY:[];
+      if(h.slice(-10).some(x=>x?.id===videoId)) return true;
       return false;
     }
-    function tryEnqueue(item, type="enqueue", needPin=false){
-      const dup = isDuplicate(item.id);
-      if (dup){
-        if (!confirm("此歌曲已在佇列/當前/近期歷史中，仍要加入嗎？")) return;
-      }
-      const pin = needPin ? prompt("請輸入管理 PIN（可略過）","") : undefined;
-      const sendItem = { ...item, requester:getNick() };
-      if (type==="insertNext") window.ktvInsertNext(sendItem, pin);
+    function tryEnqueue(item,type="enqueue",needPin=false){
+      const dup=isDuplicate(item.id);
+      if(dup && !confirm("此歌曲已在佇列/當前/近期歷史中，仍要加入嗎？")) return;
+      const pin=needPin?prompt("請輸入管理 PIN（可略過）",""):undefined;
+      const sendItem={...item,requester:getNick()};
+      if(type==="insertNext") window.ktvInsertNext(sendItem,pin);
       else window.ktvEnqueue(sendItem);
     }
 
-    window.renderHistory = function(){
-      const box = document.getElementById('histList');
-      const hist = Array.isArray(window.KTV_HISTORY)? window.KTV_HISTORY : [];
-      box.innerHTML = "";
-      hist.slice().reverse().forEach((it)=>{
-        const row = document.createElement('div');
-        row.className = "row";
-        row.innerHTML = `<div class="leftBtns"></div>
-          <div><div>${it.title||"(無標題)"} ${it.requester?`<span class="pill">by ${it.requester}</span>`:""}</div>
+    /* === 歷史渲染 === */
+    window.renderHistory=function(){
+      const box=document.getElementById('histList');
+      const hist=Array.isArray(window.KTV_HISTORY)?window.KTV_HISTORY:[];
+      box.innerHTML="";
+      hist.slice().reverse().forEach(it=>{
+        const row=document.createElement('div');
+        row.className="row";
+        row.innerHTML=`<div class="leftBtns"></div>
+          <div><div>${it.title||"(無標題)"} ${it.requester?`<span class='pill'>by ${it.requester}</span>`:""}</div>
           <div style="font-size:12px;color:#666">ID: ${it.id||""}</div></div>`;
         box.append(row);
       });
     };
 
-    document.getElementById('openRank').onclick = ()=>{
-      const url = document.getElementById('rankSel').value;
-      if (!url) return;
-      document.getElementById('rankFrame').src = url;
+    /* === 排行榜 === */
+    document.getElementById('openRank').onclick=()=>{
+      const url=document.getElementById('rankSel').value;
+      if(!url) return;
+      document.getElementById('rankFrame').src=url;
     };
 
-    document.getElementById('room-pill').textContent = window.ROOM_ID;
-    document.getElementById('ver-pill').textContent = window.APP_VERSION;
+    /* === 初始化 === */
+    document.getElementById('room-pill').textContent=window.ROOM_ID;
+    document.getElementById('ver-pill').textContent=window.APP_VERSION;
     loadNick();
   </script>
 </body>
