@@ -97,3 +97,12 @@ function send(payload, opts={}){
 }
 
 initPeer();
+// ===== Presence：送暱稱與心跳（需在頁面有 getNick() 或自行替換為固定字串）=====
+function getNickSafe(){
+  try { return (window.getNick && window.getNick()) || localStorage.getItem('ktv_nick') || "匿名"; }
+  catch { return "匿名"; }
+}
+function sendHello(){ try{ send({ type:"hello", nick:getNickSafe() }, { ack:false }); }catch{} }
+function sendPresence(){ try{ send({ type:"presence", nick:getNickSafe() }, { ack:false }); }catch{} }
+window.addEventListener('load', ()=>{ sendHello(); setInterval(sendPresence, 5000); });
+window.addEventListener('beforeunload', ()=>{ try{ send({ type:"bye" }, { ack:false }); }catch{} });
